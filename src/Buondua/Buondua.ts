@@ -183,7 +183,7 @@ export class Buondua extends Source {
 
         const albums = getAlbums($);
         metadata = !isLastPage($) ? {page: albumNum + albums.length} : undefined;
-        metadata = {page: albumNum + albums.length};
+        
         return createPagedResults({
             results: albums,
             metadata
