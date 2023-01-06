@@ -984,7 +984,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Buondua = exports.BuonduaInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaParser_1 = require("./BuonduaParser");
-const BD_DOMAIN = 'https://buondua.com';
 exports.BuonduaInfo = {
     version: '1.0.1',
     name: 'Buondua',
@@ -993,7 +992,7 @@ exports.BuonduaInfo = {
     authorWebsite: 'https://github.com/WaltersAsh',
     description: 'Extension to grab albums from Buon Dua',
     contentRating: paperback_extensions_common_1.ContentRating.ADULT,
-    websiteBaseURL: BD_DOMAIN,
+    websiteBaseURL: BuonduaParser_1.BD_DOMAIN,
     sourceTags: [
         {
             text: '18+',
@@ -1012,7 +1011,7 @@ class Buondua extends paperback_extensions_common_1.Source {
                     request.headers = {
                         ...(request.headers ?? {}),
                         ...{
-                            'referer': BD_DOMAIN
+                            'referer': BuonduaParser_1.BD_DOMAIN
                         }
                     };
                     return request;
@@ -1024,11 +1023,11 @@ class Buondua extends paperback_extensions_common_1.Source {
         });
     }
     getMangaShareUrl(mangaId) {
-        return `${BD_DOMAIN}/${mangaId}`;
+        return `${BuonduaParser_1.BD_DOMAIN}/${mangaId}`;
     }
     async getHomePageSections(sectionCallback) {
         const requestForRecent = createRequestObject({
-            url: `${BD_DOMAIN}`,
+            url: `${BuonduaParser_1.BD_DOMAIN}`,
             method: 'GET'
         });
         const responseForRecent = await this.requestManager.schedule(requestForRecent, 1);
@@ -1038,7 +1037,7 @@ class Buondua extends paperback_extensions_common_1.Source {
         recentAlbumsSection.items = recentAlbums;
         sectionCallback(recentAlbumsSection);
         const requestForHot = createRequestObject({
-            url: `${BD_DOMAIN}/hot`,
+            url: `${BuonduaParser_1.BD_DOMAIN}/hot`,
             method: 'GET'
         });
         const responseForHot = await this.requestManager.schedule(requestForHot, 1);
@@ -1062,7 +1061,7 @@ class Buondua extends paperback_extensions_common_1.Source {
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
         }
         const request = createRequestObject({
-            url: `${BD_DOMAIN}`,
+            url: `${BuonduaParser_1.BD_DOMAIN}`,
             method: 'GET',
             param
         });
@@ -1115,13 +1114,13 @@ class Buondua extends paperback_extensions_common_1.Source {
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${BD_DOMAIN}/?search=${encodeURIComponent(query.title ?? '')}&start=${albumNum}`,
+                url: `${BuonduaParser_1.BD_DOMAIN}/?search=${query.title?.match(BuonduaParser_1.REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
                 method: 'GET'
             });
         }
         else {
             request = createRequestObject({
-                url: `${BD_DOMAIN}${query.includedTags?.map((x) => decodeURIComponent(x.id))}?start=${albumNum})`,
+                url: `${BuonduaParser_1.BD_DOMAIN}${query.includedTags?.map((x) => x.id ? x.id.match(BuonduaParser_1.REGEX_ASIAN) : encodeURIComponent(x.id))}?start=${albumNum})`,
                 method: 'GET'
             });
         }
@@ -1141,9 +1140,10 @@ exports.Buondua = Buondua;
 },{"./BuonduaParser":57,"paperback-extensions-common":13}],57:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = exports.BD_DOMAIN = void 0;
 const entities = require("entities");
-const BD_DOMAIN = 'https://buondua.com';
+exports.BD_DOMAIN = 'https://buondua.com';
+exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 function getAlbums($) {
     const albums = [];
     const albumCoverGroups = $('div.blog').toArray();
@@ -1157,7 +1157,7 @@ function getAlbums($) {
                 continue;
             }
             albums.push(createMangaTile({
-                id: encodeURIComponent(id),
+                id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
                 image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
                 title: createIconText({ text: entities.decodeHTML(title) })
             }));
@@ -1168,7 +1168,7 @@ function getAlbums($) {
 exports.getAlbums = getAlbums;
 async function getGalleryData(id, requestManager, cheerio) {
     const request = createRequestObject({
-        url: `${BD_DOMAIN}/${id}`,
+        url: `${exports.BD_DOMAIN}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
@@ -1185,7 +1185,7 @@ async function getGalleryData(id, requestManager, cheerio) {
         if (!id || !label) {
             continue;
         }
-        tagsToRender.push({ id: encodeURIComponent(id), label: label });
+        tagsToRender.push({ id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label });
     }
     const tagSections = [createTagSection({
             id: '0',
@@ -1193,7 +1193,7 @@ async function getGalleryData(id, requestManager, cheerio) {
             tags: tagsToRender.map(x => createTag(x))
         })];
     return {
-        id: encodeURIComponent(id),
+        id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
         titles: [title],
         image: image,
         tags: tagSections,
@@ -1203,7 +1203,7 @@ async function getGalleryData(id, requestManager, cheerio) {
 exports.getGalleryData = getGalleryData;
 async function getPages(id, requestManager, cheerio) {
     const request = createRequestObject({
-        url: `${BD_DOMAIN}/${id}`,
+        url: `${exports.BD_DOMAIN}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
@@ -1212,7 +1212,7 @@ async function getPages(id, requestManager, cheerio) {
     const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
     for (let i = 0; i < pageCount; i++) {
         const request = createRequestObject({
-            url: `${BD_DOMAIN}/${id}?page=${i + 1}`,
+            url: `${exports.BD_DOMAIN}/${id}?page=${i + 1}`,
             method: 'GET'
         });
         const data = await requestManager.schedule(request, 1);
