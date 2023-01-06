@@ -1128,7 +1128,6 @@ class Buondua extends paperback_extensions_common_1.Source {
         const $ = this.cheerio.load(response.data);
         const albums = (0, BuonduaParser_1.getAlbums)($);
         metadata = !(0, BuonduaParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
-        metadata = { page: albumNum + albums.length };
         return createPagedResults({
             results: albums,
             metadata
