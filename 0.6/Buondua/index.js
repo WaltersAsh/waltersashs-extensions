@@ -3710,7 +3710,7 @@ class Buondua extends paperback_extensions_common_1.Source {
         }
         else {
             request = createRequestObject({
-                url: `${BuonduaParser_1.BD_DOMAIN}${query.includedTags?.map((x) => x.id ? x.id.match(BuonduaParser_1.REGEX_ASIAN) : encodeURIComponent(x.id))}?start=${albumNum})`,
+                url: `${BuonduaParser_1.BD_DOMAIN}/tag/${query.includedTags?.map((x) => encodeURIComponent(x.id.substring(4)))}?start=${albumNum})`,
                 method: 'GET'
             });
         }
