@@ -165,7 +165,7 @@ export class Buondua extends Source {
 
     override async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
         const albumNum: number = metadata?.page ?? 0;
-        
+
         let request;
         if (query.title) {
             request = createRequestObject({
@@ -174,11 +174,10 @@ export class Buondua extends Source {
             });
         } else {
             request = createRequestObject({
-                url: `${BD_DOMAIN}${query.includedTags?.map((x) => x.id ? x.id.match(REGEX_ASIAN) : encodeURIComponent(x.id))}?start=${albumNum})`,
+                url: `${BD_DOMAIN}/tag/${query.includedTags?.map((x) => encodeURIComponent(x.id.substring(4)))}?start=${albumNum})`,
                 method: 'GET'
             });
         }
-      
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data);
 

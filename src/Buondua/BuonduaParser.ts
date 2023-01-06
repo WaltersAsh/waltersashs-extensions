@@ -41,7 +41,6 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
         url: `${BD_DOMAIN}/${id}`,
         method: 'GET'
     });
-
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data);
     
@@ -81,7 +80,6 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
         url: `${BD_DOMAIN}/${id}`,
         method: 'GET'
     });
-
     const data = await requestManager.schedule(request, 1);
     let $ = cheerio.load(data.data);
     
@@ -93,7 +91,6 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
             url: `${BD_DOMAIN}/${id}?page=${i + 1}`,
             method: 'GET'
         });
-    
         const data = await requestManager.schedule(request, 1);
         const $ = cheerio.load(data.data);
 
