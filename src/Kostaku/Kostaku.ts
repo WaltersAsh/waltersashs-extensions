@@ -18,23 +18,22 @@ import {
 } from 'paperback-extensions-common';
 
 import { 
-    BD_DOMAIN,
-    REGEX_ASIAN,
+    K_DOMAIN,
     getAlbums,
     getGalleryData,
     getPages,
     isLastPage
-} from './BuonduaParser';
+} from './KostakuParser';
 
-export const BuonduaInfo: SourceInfo = {
+export const KostakuInfo: SourceInfo = {
     version: '1.0.1',
-    name: 'Buondua',
+    name: 'Kostaku',
     icon: 'icon.png',
     author: 'WaltersAsh',
     authorWebsite: 'https://github.com/WaltersAsh',
-    description: 'Extension to grab albums from Buon Dua',
+    description: 'Extension to grab albums from Kostaku',
     contentRating: ContentRating.ADULT,
-    websiteBaseURL: BD_DOMAIN,
+    websiteBaseURL: K_DOMAIN,
     sourceTags: [
         {
             text: '18+',
@@ -43,7 +42,7 @@ export const BuonduaInfo: SourceInfo = {
     ]
 }
 
-export class Buondua extends Source {
+export class Kostaku extends Source {
      readonly requestManager: RequestManager = createRequestManager({
         requestsPerSecond: 4,
         requestTimeout: 15000,
@@ -52,7 +51,7 @@ export class Buondua extends Source {
                 request.headers = {
                     ...(request.headers ?? {}),
                     ...{
-                        'referer': BD_DOMAIN
+                        'referer': K_DOMAIN
                     }
                 }
                 return request;
@@ -65,12 +64,12 @@ export class Buondua extends Source {
     });
 
     override getMangaShareUrl(mangaId: string): string {
-        return `${BD_DOMAIN}/${mangaId}`;
+        return `${K_DOMAIN}/${mangaId}`;
     }
 
     override async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
         const requestForRecent = createRequestObject({
-            url: `${BD_DOMAIN}`,
+            url: `${K_DOMAIN}`,
             method: 'GET'
         });
         const responseForRecent = await this.requestManager.schedule(requestForRecent, 1);
@@ -81,7 +80,7 @@ export class Buondua extends Source {
         sectionCallback(recentAlbumsSection);
 
         const requestForHot = createRequestObject({
-            url: `${BD_DOMAIN}/hot`,
+            url: `${K_DOMAIN}/hot`,
             method: 'GET'
         });
         const responseForHot = await this.requestManager.schedule(requestForHot, 1);
@@ -95,7 +94,7 @@ export class Buondua extends Source {
     override async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
         const albumNum: number = metadata?.page ?? 0;
 
-        let param = '';
+        let param = `/?start=${albumNum}`;
         switch (homepageSectionId) {
             case 'recent':
                 param = `/?start=${albumNum}`;
@@ -108,7 +107,7 @@ export class Buondua extends Source {
         }
 
         const request = createRequestObject({
-            url: `${BD_DOMAIN}`,
+            url: `${K_DOMAIN}`,
             method: 'GET',
             param
         });
@@ -132,8 +131,8 @@ export class Buondua extends Source {
             image: data.image,
             status: MangaStatus.UNKNOWN,
             langFlag: LanguageCode.UNKNOWN,
-            author: 'Buondua',
-            artist: 'Buondua',
+            author: 'Kostaku',
+            artist: 'Kostaku',
             tags: data.tags,
             desc: data.desc
         });
@@ -169,12 +168,12 @@ export class Buondua extends Source {
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${BD_DOMAIN}/?search=${query.title?.match(REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
+                url: `${K_DOMAIN}/?search=${query.title}&start=${albumNum}`,
                 method: 'GET'
             });
         } else {
             request = createRequestObject({
-                url: `${BD_DOMAIN}/tag/${query.includedTags?.map((x) => encodeURIComponent(x.id.substring(4)))}?start=${albumNum})`,
+                url: `${K_DOMAIN}/${query.includedTags?.map(x => x.id)}?start=${albumNum})`,
                 method: 'GET'
             });
         }

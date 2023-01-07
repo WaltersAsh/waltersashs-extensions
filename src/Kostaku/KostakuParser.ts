@@ -7,7 +7,7 @@ import {
 
 import entities = require('entities');
 
-export const BD_DOMAIN = 'https://buondua.com';
+export const K_DOMAIN = 'https://kostaku.art';
 export const REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 
 export function getAlbums ($: CheerioStatic): MangaTile[] {
@@ -38,7 +38,7 @@ export function getAlbums ($: CheerioStatic): MangaTile[] {
 
 export async function getGalleryData(id: string, requestManager: RequestManager, cheerio: CheerioAPI): Promise<any> {
     const request = createRequestObject({
-        url: `${BD_DOMAIN}/${id}`,
+        url: `${K_DOMAIN}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
@@ -46,7 +46,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     
     const title = $('div.article-header').first().text();
     const image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-    const desc = $('small', 'div.article-info').last().text();
+    const desc = $('div.article-info').first().text() + '\n' + $('div.article-info').last().text();
 
     const tagHeader = $('div.article-tags').first();
     const tags = $('a.tag', tagHeader).toArray();
@@ -57,7 +57,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
         if (!id || !label) {
             continue;
         }
-        tagsToRender.push({ id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label });
+        tagsToRender.push({ id: id, label: label });
     }
 
     const tagSections: TagSection[] = [createTagSection({
@@ -77,7 +77,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
 
 export async function getPages(id: string, requestManager: RequestManager, cheerio: CheerioAPI): Promise<string[]> {
     const request = createRequestObject({
-        url: `${BD_DOMAIN}/${id}`,
+        url: `${K_DOMAIN}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
@@ -88,7 +88,7 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
 
     for (let i = 0; i < pageCount; i++) {
         const request = createRequestObject({
-            url: `${BD_DOMAIN}/${id}?page=${i + 1}`,
+            url: `${K_DOMAIN}/${id}?page=${i + 1}`,
             method: 'GET'
         });
         const data = await requestManager.schedule(request, 1);
@@ -102,6 +102,14 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
     }
 
     return pages;
+}
+
+export function encodeAsianChars(baseString: string): string {
+    const stringArr = baseString.split('');
+    const result: string[] = [];
+    stringArr.forEach(x => (x.match(REGEX_ASIAN) ? result.push(encodeURI(x)) : result.push(x)));
+
+    return result.toString();
 }
 
 export const isLastPage = ($: CheerioStatic): boolean => {
