@@ -985,7 +985,7 @@ exports.Buondua = exports.BuonduaInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaParser_1 = require("./BuonduaParser");
 exports.BuonduaInfo = {
-    version: '1.0.1',
+    version: '1.0.2',
     name: 'Buondua',
     icon: 'icon.png',
     author: 'WaltersAsh',
