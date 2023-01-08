@@ -19,7 +19,6 @@ import {
 
 import { 
     BD_DOMAIN,
-    REGEX_ASIAN,
     getAlbums,
     getGalleryData,
     getPages,
@@ -27,7 +26,7 @@ import {
 } from './BuonduaParser';
 
 export const BuonduaInfo: SourceInfo = {
-    version: '1.0.2',
+    version: '1.0.3',
     name: 'Buondua',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -169,7 +168,7 @@ export class Buondua extends Source {
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${BD_DOMAIN}/?search=${query.title?.match(REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
+                url: `${BD_DOMAIN}/?search=${encodeURIComponent(query.title)}&start=${albumNum}`,
                 method: 'GET'
             });
         } else {

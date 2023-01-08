@@ -19,7 +19,6 @@ import { Buondua } from '../Buondua/Buondua';
 
 import { 
     K_DOMAIN,
-    REGEX_ASIAN,
     getAlbums,
     getGalleryData,
     getPages
@@ -30,7 +29,7 @@ import {
 } from '../Buondua/BuonduaParser';
 
 export const KostakuInfo: SourceInfo = {
-    version: '1.0.1',
+    version: '1.0.2',
     name: 'Kostaku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -172,7 +171,7 @@ export class Kostaku extends Buondua {
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${K_DOMAIN}/?search=${query.title?.match(REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
+                url: `${K_DOMAIN}/?search=${encodeURIComponent(query.title)}&start=${albumNum}`,
                 method: 'GET'
             });
         } else {
