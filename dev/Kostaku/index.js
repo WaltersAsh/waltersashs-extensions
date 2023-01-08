@@ -3704,7 +3704,7 @@ class Kostaku extends paperback_extensions_common_1.Source {
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${KostakuParser_1.K_DOMAIN}/?search=${query.title}&start=${albumNum}`,
+                url: `${KostakuParser_1.K_DOMAIN}/?search=${query.title?.match(KostakuParser_1.REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
                 method: 'GET'
             });
         }
@@ -3729,7 +3729,7 @@ exports.Kostaku = Kostaku;
 },{"./KostakuParser":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.encodeAsianChars = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = exports.K_DOMAIN = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = exports.K_DOMAIN = void 0;
 const entities = require("entities");
 exports.K_DOMAIN = 'https://kostaku.art';
 exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
@@ -3742,12 +3742,14 @@ function getAlbums($) {
             const image = $('img', albumCover).first().attr('src') ?? '';
             const title = $('img', albumCover).first().attr('alt') ?? '';
             const id = $('a', albumCover).attr('href')?.replace(/\/$/, '')?.split('/').pop() ?? '';
+            const imageSplit = image.split('com');
+            const imageEncoded = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
             if (!id || !title) {
                 continue;
             }
             albums.push(createMangaTile({
                 id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
-                image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
+                image: imageEncoded ? imageEncoded : 'https://i.imgur.com/GYUxEX8.png',
                 title: createIconText({ text: entities.decodeHTML(title) })
             }));
         }
@@ -3765,6 +3767,8 @@ async function getGalleryData(id, requestManager, cheerio) {
     const title = $('div.article-header').first().text();
     const image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
     const desc = $('div.article-info').first().text() + '\n' + $('div.article-info').last().text();
+    const imageSplit = image.split('com');
+    const imageEncoded = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
     const tagHeader = $('div.article-tags').first();
     const tags = $('a.tag', tagHeader).toArray();
     const tagsToRender = [];
@@ -3784,7 +3788,7 @@ async function getGalleryData(id, requestManager, cheerio) {
     return {
         id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
         titles: [title],
-        image: image,
+        image: imageEncoded,
         tags: tagSections,
         desc: desc
     };
@@ -3809,19 +3813,14 @@ async function getPages(id, requestManager, cheerio) {
         const images = $('p', 'div.article-fulltext').toArray();
         for (const img of images) {
             const imageString = $('img', img).attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-            pages.push(imageString);
+            const imageSplit = imageString.split('com');
+            const imageEncoded = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
+            pages.push(imageEncoded);
         }
     }
     return pages;
 }
 exports.getPages = getPages;
-function encodeAsianChars(baseString) {
-    const stringArr = baseString.split('');
-    const result = [];
-    stringArr.forEach(x => (x.match(exports.REGEX_ASIAN) ? result.push(encodeURI(x)) : result.push(x)));
-    return result.toString();
-}
-exports.encodeAsianChars = encodeAsianChars;
 const isLastPage = ($) => {
     const nav = $('nav.pagination', 'div.is-full.main-container');
     const pageList = $('ul.pagination-list', nav);
