@@ -27,7 +27,7 @@ import {
 } from './BuonduaParser';
 
 export const BuonduaInfo: SourceInfo = {
-    version: '1.0.1',
+    version: '1.0.2',
     name: 'Buondua',
     icon: 'icon.png',
     author: 'WaltersAsh',
