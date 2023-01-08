@@ -981,9 +981,271 @@ __exportStar(require("./RawData"), exports);
 },{"./Chapter":14,"./ChapterDetails":15,"./Constants":16,"./DynamicUI":32,"./HomeSection":33,"./Languages":34,"./Manga":35,"./MangaTile":36,"./MangaUpdate":37,"./PagedResults":38,"./RawData":39,"./RequestHeaders":40,"./RequestInterceptor":41,"./RequestManager":42,"./RequestObject":43,"./ResponseObject":44,"./SearchField":45,"./SearchRequest":46,"./SourceInfo":47,"./SourceManga":48,"./SourceStateManager":49,"./SourceTag":50,"./TagSection":51,"./TrackedManga":52,"./TrackedMangaChapterReadAction":53,"./TrackerActionQueue":54}],56:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Buondua = exports.BuonduaInfo = void 0;
+const paperback_extensions_common_1 = require("paperback-extensions-common");
+const BuonduaParser_1 = require("./BuonduaParser");
+exports.BuonduaInfo = {
+    version: '1.0.1',
+    name: 'Buondua',
+    icon: 'icon.png',
+    author: 'WaltersAsh',
+    authorWebsite: 'https://github.com/WaltersAsh',
+    description: 'Extension to grab albums from Buon Dua',
+    contentRating: paperback_extensions_common_1.ContentRating.ADULT,
+    websiteBaseURL: BuonduaParser_1.BD_DOMAIN,
+    sourceTags: [
+        {
+            text: '18+',
+            type: paperback_extensions_common_1.TagType.RED
+        }
+    ]
+};
+class Buondua extends paperback_extensions_common_1.Source {
+    constructor() {
+        super(...arguments);
+        this.requestManager = createRequestManager({
+            requestsPerSecond: 4,
+            requestTimeout: 15000,
+            interceptor: {
+                interceptRequest: async (request) => {
+                    request.headers = {
+                        ...(request.headers ?? {}),
+                        ...{
+                            'referer': BuonduaParser_1.BD_DOMAIN
+                        }
+                    };
+                    return request;
+                },
+                interceptResponse: async (response) => {
+                    return response;
+                }
+            }
+        });
+    }
+    getMangaShareUrl(mangaId) {
+        return `${BuonduaParser_1.BD_DOMAIN}/${mangaId}`;
+    }
+    async getHomePageSections(sectionCallback) {
+        const requestForRecent = createRequestObject({
+            url: `${BuonduaParser_1.BD_DOMAIN}`,
+            method: 'GET'
+        });
+        const responseForRecent = await this.requestManager.schedule(requestForRecent, 1);
+        const $recent = this.cheerio.load(responseForRecent.data);
+        const recentAlbumsSection = createHomeSection({ id: 'recent', title: 'Recently Uploaded', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
+        const recentAlbums = (0, BuonduaParser_1.getAlbums)($recent);
+        recentAlbumsSection.items = recentAlbums;
+        sectionCallback(recentAlbumsSection);
+        const requestForHot = createRequestObject({
+            url: `${BuonduaParser_1.BD_DOMAIN}/hot`,
+            method: 'GET'
+        });
+        const responseForHot = await this.requestManager.schedule(requestForHot, 1);
+        const $hot = this.cheerio.load(responseForHot.data);
+        const hotAlbumsSection = createHomeSection({ id: 'hot', title: 'Hot', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
+        const hotAlbums = (0, BuonduaParser_1.getAlbums)($hot);
+        hotAlbumsSection.items = hotAlbums;
+        sectionCallback(hotAlbumsSection);
+    }
+    async getViewMoreItems(homepageSectionId, metadata) {
+        const albumNum = metadata?.page ?? 0;
+        let param = '';
+        switch (homepageSectionId) {
+            case 'recent':
+                param = `/?start=${albumNum}`;
+                break;
+            case 'hot':
+                param = `/hot?start=${albumNum}`;
+                break;
+            default:
+                throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
+        }
+        const request = createRequestObject({
+            url: `${BuonduaParser_1.BD_DOMAIN}`,
+            method: 'GET',
+            param
+        });
+        const response = await this.requestManager.schedule(request, 1);
+        const $ = this.cheerio.load(response.data);
+        const albums = (0, BuonduaParser_1.getAlbums)($);
+        metadata = !(0, BuonduaParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
+        return createPagedResults({
+            results: albums,
+            metadata
+        });
+    }
+    async getMangaDetails(mangaId) {
+        const data = await (0, BuonduaParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
+        return createManga({
+            id: mangaId,
+            titles: data.titles,
+            image: data.image,
+            status: paperback_extensions_common_1.MangaStatus.UNKNOWN,
+            langFlag: paperback_extensions_common_1.LanguageCode.UNKNOWN,
+            author: 'Buondua',
+            artist: 'Buondua',
+            tags: data.tags,
+            desc: data.desc
+        });
+    }
+    async getChapters(mangaId) {
+        const data = await (0, BuonduaParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
+        const chapters = [];
+        chapters.push(createChapter({
+            id: data.id,
+            mangaId,
+            name: 'Album',
+            langCode: paperback_extensions_common_1.LanguageCode.UNKNOWN,
+            chapNum: 1,
+            time: new Date(),
+        }));
+        return chapters;
+    }
+    async getChapterDetails(mangaId, chapterId) {
+        return createChapterDetails({
+            id: chapterId,
+            mangaId: mangaId,
+            longStrip: false,
+            pages: await (0, BuonduaParser_1.getPages)(mangaId, this.requestManager, this.cheerio)
+        });
+    }
+    async getSearchResults(query, metadata) {
+        const albumNum = metadata?.page ?? 0;
+        let request;
+        if (query.title) {
+            request = createRequestObject({
+                url: `${BuonduaParser_1.BD_DOMAIN}/?search=${query.title?.match(BuonduaParser_1.REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
+                method: 'GET'
+            });
+        }
+        else {
+            request = createRequestObject({
+                url: `${BuonduaParser_1.BD_DOMAIN}/tag/${query.includedTags?.map((x) => encodeURIComponent(x.id.substring(4)))}?start=${albumNum})`,
+                method: 'GET'
+            });
+        }
+        const response = await this.requestManager.schedule(request, 1);
+        const $ = this.cheerio.load(response.data);
+        const albums = (0, BuonduaParser_1.getAlbums)($);
+        metadata = !(0, BuonduaParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
+        return createPagedResults({
+            results: albums,
+            metadata
+        });
+    }
+}
+exports.Buondua = Buondua;
+
+},{"./BuonduaParser":57,"paperback-extensions-common":13}],57:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = exports.BD_DOMAIN = void 0;
+const entities = require("entities");
+exports.BD_DOMAIN = 'https://buondua.com';
+exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
+function getAlbums($) {
+    const albums = [];
+    const albumCoverGroups = $('div.blog').toArray();
+    for (const albumCoverGroup of albumCoverGroups) {
+        const albumCovers = $('div.items-row', albumCoverGroup).toArray();
+        for (const albumCover of albumCovers) {
+            const image = $('img', albumCover).first().attr('src') ?? '';
+            const title = $('img', albumCover).first().attr('alt') ?? '';
+            const id = $('a', albumCover).attr('href')?.replace(/\/$/, '')?.split('/').pop() ?? '';
+            if (!id || !title) {
+                continue;
+            }
+            albums.push(createMangaTile({
+                id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
+                image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
+                title: createIconText({ text: entities.decodeHTML(title) })
+            }));
+        }
+    }
+    return albums;
+}
+exports.getAlbums = getAlbums;
+async function getGalleryData(id, requestManager, cheerio) {
+    const request = createRequestObject({
+        url: `${exports.BD_DOMAIN}/${id}`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data);
+    const title = $('div.article-header').first().text();
+    const image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+    const desc = $('small', 'div.article-info').last().text();
+    const tagHeader = $('div.article-tags').first();
+    const tags = $('a.tag', tagHeader).toArray();
+    const tagsToRender = [];
+    for (const tag of tags) {
+        const label = $('span', tag).text();
+        const id = $(tag).attr('href');
+        if (!id || !label) {
+            continue;
+        }
+        tagsToRender.push({ id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label });
+    }
+    const tagSections = [createTagSection({
+            id: '0',
+            label: 'Tags',
+            tags: tagsToRender.map(x => createTag(x))
+        })];
+    return {
+        id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
+        titles: [title],
+        image: image,
+        tags: tagSections,
+        desc: desc
+    };
+}
+exports.getGalleryData = getGalleryData;
+async function getPages(id, requestManager, cheerio) {
+    const request = createRequestObject({
+        url: `${exports.BD_DOMAIN}/${id}`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    let $ = cheerio.load(data.data);
+    const pages = [];
+    const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
+    for (let i = 0; i < pageCount; i++) {
+        const request = createRequestObject({
+            url: `${exports.BD_DOMAIN}/${id}?page=${i + 1}`,
+            method: 'GET'
+        });
+        const data = await requestManager.schedule(request, 1);
+        const $ = cheerio.load(data.data);
+        const images = $('p', 'div.article-fulltext').toArray();
+        for (const img of images) {
+            const imageString = $('img', img).attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+            pages.push(imageString);
+        }
+    }
+    return pages;
+}
+exports.getPages = getPages;
+const isLastPage = ($) => {
+    const nav = $('nav.pagination', 'div.is-full.main-container');
+    const pageList = $('ul.pagination-list', nav);
+    const lastPageNum = parseInt($('li', pageList).last().text());
+    const currPageNum = parseInt($('a.is-current', pageList).text());
+    return (isNaN(lastPageNum) ||
+        isNaN(currPageNum) ||
+        lastPageNum === -1 ||
+        lastPageNum === currPageNum ?
+        true : false);
+};
+exports.isLastPage = isLastPage;
+
+},{"entities":9}],58:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.Kostaku = exports.KostakuInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
+const Buondua_1 = require("../Buondua/Buondua");
 const KostakuParser_1 = require("./KostakuParser");
+const BuonduaParser_1 = require("../Buondua/BuonduaParser");
 exports.KostakuInfo = {
     version: '1.0.1',
     name: 'Kostaku',
@@ -1000,7 +1262,7 @@ exports.KostakuInfo = {
         }
     ]
 };
-class Kostaku extends paperback_extensions_common_1.Source {
+class Kostaku extends Buondua_1.Buondua {
     constructor() {
         super(...arguments);
         this.requestManager = createRequestManager({
@@ -1068,7 +1330,7 @@ class Kostaku extends paperback_extensions_common_1.Source {
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data);
         const albums = (0, KostakuParser_1.getAlbums)($);
-        metadata = !(0, KostakuParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
+        metadata = !(0, BuonduaParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
         return createPagedResults({
             results: albums,
             metadata
@@ -1127,7 +1389,7 @@ class Kostaku extends paperback_extensions_common_1.Source {
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data);
         const albums = (0, KostakuParser_1.getAlbums)($);
-        metadata = !(0, KostakuParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
+        metadata = !(0, BuonduaParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
         return createPagedResults({
             results: albums,
             metadata
@@ -1136,10 +1398,10 @@ class Kostaku extends paperback_extensions_common_1.Source {
 }
 exports.Kostaku = Kostaku;
 
-},{"./KostakuParser":57,"paperback-extensions-common":13}],57:[function(require,module,exports){
+},{"../Buondua/Buondua":56,"../Buondua/BuonduaParser":57,"./KostakuParser":59,"paperback-extensions-common":13}],59:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = exports.K_DOMAIN = void 0;
+exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = exports.K_DOMAIN = void 0;
 const entities = require("entities");
 exports.K_DOMAIN = 'https://kostaku.art';
 exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
@@ -1231,18 +1493,6 @@ async function getPages(id, requestManager, cheerio) {
     return pages;
 }
 exports.getPages = getPages;
-const isLastPage = ($) => {
-    const nav = $('nav.pagination', 'div.is-full.main-container');
-    const pageList = $('ul.pagination-list', nav);
-    const lastPageNum = parseInt($('li', pageList).last().text());
-    const currPageNum = parseInt($('a.is-current', pageList).text());
-    return (isNaN(lastPageNum) ||
-        isNaN(currPageNum) ||
-        lastPageNum === -1 ||
-        lastPageNum === currPageNum ?
-        true : false);
-};
-exports.isLastPage = isLastPage;
 
-},{"entities":9}]},{},[56])(56)
+},{"entities":9}]},{},[58])(58)
 });
