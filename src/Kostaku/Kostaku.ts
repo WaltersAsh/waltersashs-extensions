@@ -1,5 +1,4 @@
 import {
-    Source,
     Manga,
     Chapter,
     ChapterDetails,
@@ -16,15 +15,19 @@ import {
     LanguageCode,
     HomeSectionType
 } from 'paperback-extensions-common';
+import { Buondua } from '../Buondua/Buondua';
 
 import { 
     K_DOMAIN,
     REGEX_ASIAN,
     getAlbums,
     getGalleryData,
-    getPages,
-    isLastPage
+    getPages
 } from './KostakuParser';
+
+import { 
+    isLastPage 
+} from '../Buondua/BuonduaParser';
 
 export const KostakuInfo: SourceInfo = {
     version: '1.0.1',
@@ -43,8 +46,8 @@ export const KostakuInfo: SourceInfo = {
     ]
 }
 
-export class Kostaku extends Source {
-     readonly requestManager: RequestManager = createRequestManager({
+export class Kostaku extends Buondua {
+     override readonly requestManager: RequestManager = createRequestManager({
         requestsPerSecond: 4,
         requestTimeout: 15000,
         interceptor: {
@@ -139,7 +142,7 @@ export class Kostaku extends Source {
         });
     }
 
-    async getChapters(mangaId: string): Promise<Chapter[]> {
+    override async getChapters(mangaId: string): Promise<Chapter[]> {
         const data = await getGalleryData(mangaId, this.requestManager, this.cheerio);
         const chapters: Chapter[] = [];
         chapters.push(createChapter({
@@ -154,7 +157,7 @@ export class Kostaku extends Source {
         return chapters;
     }
 
-    async getChapterDetails(mangaId: string, chapterId: string): Promise<ChapterDetails> {
+    override async getChapterDetails(mangaId: string, chapterId: string): Promise<ChapterDetails> {
         return createChapterDetails({
             id: chapterId,
             mangaId: mangaId,
