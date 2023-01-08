@@ -985,7 +985,7 @@ exports.Buondua = exports.BuonduaInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaParser_1 = require("./BuonduaParser");
 exports.BuonduaInfo = {
-    version: '1.0.2',
+    version: '1.0.3',
     name: 'Buondua',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1114,7 +1114,7 @@ class Buondua extends paperback_extensions_common_1.Source {
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${BuonduaParser_1.BD_DOMAIN}/?search=${query.title?.match(BuonduaParser_1.REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
+                url: `${BuonduaParser_1.BD_DOMAIN}/?search=${encodeURIComponent(query.title)}&start=${albumNum}`,
                 method: 'GET'
             });
         }
@@ -1247,7 +1247,7 @@ const Buondua_1 = require("../Buondua/Buondua");
 const KostakuParser_1 = require("./KostakuParser");
 const BuonduaParser_1 = require("../Buondua/BuonduaParser");
 exports.KostakuInfo = {
-    version: '1.0.1',
+    version: '1.0.2',
     name: 'Kostaku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1376,7 +1376,7 @@ class Kostaku extends Buondua_1.Buondua {
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${KostakuParser_1.K_DOMAIN}/?search=${query.title?.match(KostakuParser_1.REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
+                url: `${KostakuParser_1.K_DOMAIN}/?search=${encodeURIComponent(query.title)}&start=${albumNum}`,
                 method: 'GET'
             });
         }
