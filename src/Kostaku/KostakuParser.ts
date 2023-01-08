@@ -21,13 +21,15 @@ export function getAlbums ($: CheerioStatic): MangaTile[] {
             const image = $('img', albumCover).first().attr('src') ?? '';
             const title = $('img', albumCover).first().attr('alt') ?? '';
             const id = $('a', albumCover).attr('href')?.replace(/\/$/, '')?.split('/').pop() ?? '';
+            const imageSplit: string[] = image.split('com');
+            const imageEncoded = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/'); 
 
             if (!id || !title) {
                 continue;
             }
             albums.push(createMangaTile({
                 id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id,
-                image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
+                image: imageEncoded ? imageEncoded : 'https://i.imgur.com/GYUxEX8.png',
                 title: createIconText({text: entities.decodeHTML(title)})
             }));
         }
@@ -47,6 +49,8 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     const title = $('div.article-header').first().text();
     const image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
     const desc = $('div.article-info').first().text() + '\n' + $('div.article-info').last().text();
+    const imageSplit: string[] = image.split('com');
+    const imageEncoded = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/'); 
 
     const tagHeader = $('div.article-tags').first();
     const tags = $('a.tag', tagHeader).toArray();
@@ -69,7 +73,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     return {
         id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id,
         titles: [title],
-        image: image,
+        image: imageEncoded,
         tags: tagSections,
         desc: desc
     }
@@ -97,19 +101,13 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
         const images = $('p', 'div.article-fulltext').toArray();
         for (const img of images) {
             const imageString = $('img', img).attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-            pages.push(imageString);
+            const imageSplit: string[] = imageString.split('com');
+            const imageEncoded = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/'); 
+            pages.push(imageEncoded);
         }
     }
 
     return pages;
-}
-
-export function encodeAsianChars(baseString: string): string {
-    const stringArr = baseString.split('');
-    const result: string[] = [];
-    stringArr.forEach(x => (x.match(REGEX_ASIAN) ? result.push(encodeURI(x)) : result.push(x)));
-
-    return result.toString();
 }
 
 export const isLastPage = ($: CheerioStatic): boolean => {

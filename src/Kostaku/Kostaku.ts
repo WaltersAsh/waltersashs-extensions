@@ -19,6 +19,7 @@ import {
 
 import { 
     K_DOMAIN,
+    REGEX_ASIAN,
     getAlbums,
     getGalleryData,
     getPages,
@@ -168,7 +169,7 @@ export class Kostaku extends Source {
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${K_DOMAIN}/?search=${query.title}&start=${albumNum}`,
+                url: `${K_DOMAIN}/?search=${query.title?.match(REGEX_ASIAN) ? encodeURIComponent(query.title) : query.title}&start=${albumNum}`,
                 method: 'GET'
             });
         } else {
