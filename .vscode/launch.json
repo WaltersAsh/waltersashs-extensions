@@ -19,7 +19,8 @@
             ],
             "console": "integratedTerminal",
             "sourceMaps": true,
-            "internalConsoleOptions": "neverOpen"
+            "internalConsoleOptions": "neverOpen",
+            "runtimeExecutable": "/usr/local/bin/node"
       }
     ]
 }

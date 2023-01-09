@@ -47,7 +47,6 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     const title = $('div.article-header').first().text();
     const image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
     const desc = $('div.article-info').first().text() + '\n' + $('div.article-info').last().text();
-    console.log(image);
 
     const tagHeader = $('div.article-tags').first();
     const tags = $('a.tag', tagHeader).toArray();
