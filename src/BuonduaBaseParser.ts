@@ -7,10 +7,9 @@ import {
 
 import entities = require('entities');
 
-export const BD_DOMAIN = 'https://buondua.com';
 export const REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 
-export function getAlbums ($: CheerioStatic): MangaTile[] {
+export function getAlbums ($: CheerioStatic, hasEncodedUrls: boolean): MangaTile[] {
     const albums: MangaTile[] = [];
     const albumCoverGroups = $('div.blog').toArray();
 
@@ -18,9 +17,14 @@ export function getAlbums ($: CheerioStatic): MangaTile[] {
         const albumCovers = $('div.items-row', albumCoverGroup).toArray();
 
         for (const albumCover of albumCovers) {
-            const image = $('img', albumCover).first().attr('src') ?? '';
+            let image = $('img', albumCover).first().attr('src') ?? '';
             const title = $('img', albumCover).first().attr('alt') ?? '';
             const id = $('a', albumCover).attr('href')?.replace(/\/$/, '')?.split('/').pop() ?? '';
+
+            if (hasEncodedUrls) {
+                const imageSplit: string[] = image.split('com');
+                image = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
+            }
 
             if (!id || !title) {
                 continue;
@@ -36,17 +40,23 @@ export function getAlbums ($: CheerioStatic): MangaTile[] {
     return albums;
 }
 
-export async function getGalleryData(id: string, requestManager: RequestManager, cheerio: CheerioAPI): Promise<any> {
+export async function getGalleryData(id: string, requestManager: RequestManager, cheerio: CheerioAPI, domain: string, hasEncodedUrls: boolean): Promise<any> {
     const request = createRequestObject({
-        url: `${BD_DOMAIN}/${id}`,
+        url: `${domain}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data);
     
     const title = $('div.article-header').first().text();
-    const image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-    const desc = $('small', 'div.article-info').last().text();
+    let image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+    let desc = $('small', 'div.article-info').last().text();
+
+    if (hasEncodedUrls) {
+        desc = $('div.article-info').first().text() + '\n' + $('div.article-info').last().text();
+        const imageSplit: string[] = image.split('com');
+        image = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
+    }
 
     const tagHeader = $('div.article-tags').first();
     const tags = $('a.tag', tagHeader).toArray();
@@ -57,7 +67,8 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
         if (!id || !label) {
             continue;
         }
-        tagsToRender.push({ id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label });
+        hasEncodedUrls ? tagsToRender.push({ id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label })
+                       : tagsToRender.push({ id: id, label: label });
     }
 
     const tagSections: TagSection[] = [createTagSection({
@@ -75,9 +86,9 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     }
 }
 
-export async function getPages(id: string, requestManager: RequestManager, cheerio: CheerioAPI): Promise<string[]> {
+export async function getPages(id: string, requestManager: RequestManager, cheerio: CheerioAPI, domain: string, hasEncodedUrls: boolean): Promise<string[]> {
     const request = createRequestObject({
-        url: `${BD_DOMAIN}/${id}`,
+        url: `${domain}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
@@ -88,7 +99,7 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
 
     for (let i = 0; i < pageCount; i++) {
         const request = createRequestObject({
-            url: `${BD_DOMAIN}/${id}?page=${i + 1}`,
+            url: `${domain}/${id}?page=${i + 1}`,
             method: 'GET'
         });
         const data = await requestManager.schedule(request, 1);
@@ -96,7 +107,13 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
 
         const images = $('p', 'div.article-fulltext').toArray();
         for (const img of images) {
-            const imageString = $('img', img).attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+            let imageString = $('img', img).attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+
+            if (hasEncodedUrls) {
+                const imageSplit: string[] = imageString.split('com');
+                imageString = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
+            }
+
             pages.push(imageString);
         }
     }
