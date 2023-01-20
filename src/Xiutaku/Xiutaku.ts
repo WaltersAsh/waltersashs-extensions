@@ -1,4 +1,3 @@
-import { version } from 'chai';
 import {
     SourceInfo,
     TagType,
