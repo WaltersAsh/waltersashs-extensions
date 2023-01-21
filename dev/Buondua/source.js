@@ -1072,6 +1072,7 @@ class Buondua extends paperback_extensions_common_1.Source {
         hotAlbumsSection.items = hotAlbums;
         sectionCallback(hotAlbumsSection);
     }
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
         const albumNum = metadata?.page ?? 0;
         let param = '';
@@ -1134,6 +1135,7 @@ class Buondua extends paperback_extensions_common_1.Source {
             pages: await (0, BuonduaBaseParser_1.getPages)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls)
         });
     }
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query, metadata) {
         const albumNum = metadata?.page ?? 0;
         let request;
@@ -1194,6 +1196,7 @@ function getAlbums($, hasEncodedUrls) {
     return albums;
 }
 exports.getAlbums = getAlbums;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrls) {
     const request = createRequestObject({
         url: `${domain}/${id}`,
@@ -1241,7 +1244,7 @@ async function getPages(id, requestManager, cheerio, domain, hasEncodedUrls) {
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
-    let $ = cheerio.load(data.data);
+    const $ = cheerio.load(data.data);
     const pages = [];
     const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
     for (let i = 0; i < pageCount; i++) {
