@@ -22,7 +22,7 @@ import {
 } from './BuonduaBaseParser';
 
 export default abstract class Buondua extends Source {
-     readonly requestManager: RequestManager = createRequestManager({
+    readonly requestManager: RequestManager = createRequestManager({
         requestsPerSecond: 4,
         requestTimeout: 15000,
         interceptor: {
@@ -32,7 +32,7 @@ export default abstract class Buondua extends Source {
                     ...{
                         'referer': this.baseUrl
                     }
-                }
+                };
                 return request;
             },
             
@@ -75,6 +75,7 @@ export default abstract class Buondua extends Source {
         sectionCallback(hotAlbumsSection);
     }
 
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     override async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
         const albumNum: number = metadata?.page ?? 0;
 
@@ -146,6 +147,7 @@ export default abstract class Buondua extends Source {
         });
     }
 
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     override async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
         const albumNum: number = metadata?.page ?? 0;
 
@@ -158,7 +160,7 @@ export default abstract class Buondua extends Source {
         } else {
             request = createRequestObject({
                 url: this.hasEncodedTags ? `${this.baseUrl}/tag/${query.includedTags?.map((x) => encodeURIComponent(x.id.substring(4)))}?start=${albumNum})`
-                                         : `${this.baseUrl}/${query.includedTags?.map(x => x.id)}?start=${albumNum})`,
+                    : `${this.baseUrl}/${query.includedTags?.map(x => x.id)}?start=${albumNum})`,
                 method: 'GET'
             });
         }

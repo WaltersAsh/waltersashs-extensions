@@ -40,6 +40,7 @@ export function getAlbums ($: CheerioStatic, hasEncodedUrls: boolean): MangaTile
     return albums;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getGalleryData(id: string, requestManager: RequestManager, cheerio: CheerioAPI, domain: string, hasEncodedUrls: boolean): Promise<any> {
     const request = createRequestObject({
         url: `${domain}/${id}`,
@@ -68,7 +69,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
             continue;
         }
         hasEncodedUrls ? tagsToRender.push({ id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label })
-                       : tagsToRender.push({ id: id, label: label });
+            : tagsToRender.push({ id: id, label: label });
     }
 
     const tagSections: TagSection[] = [createTagSection({
@@ -83,7 +84,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
         image: image,
         tags: tagSections,
         desc: desc
-    }
+    };
 }
 
 export async function getPages(id: string, requestManager: RequestManager, cheerio: CheerioAPI, domain: string, hasEncodedUrls: boolean): Promise<string[]> {
@@ -92,7 +93,7 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
-    let $ = cheerio.load(data.data);
+    const $ = cheerio.load(data.data);
     
     const pages: string[] = [];
     const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
@@ -131,5 +132,5 @@ export const isLastPage = ($: CheerioStatic): boolean => {
             isNaN(currPageNum) ||
             lastPageNum === -1 || 
             lastPageNum === currPageNum ? 
-            true : false);
-}
+        true : false);
+};

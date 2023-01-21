@@ -46,7 +46,7 @@ describe('Kostaku Tests', () => {
         expect(entry?.id, 'No ID present').to.not.be.empty;
         expect(entry?.mangaId, 'MangaId Changed').to.be.eql(mangaId);
         expect(entry?.time, 'No date present').to.exist;
-        expect(entry?.name, "No title available").to.not.be.empty
+        expect(entry?.name, 'No title available').to.not.be.empty;
         expect(entry?.chapNum, 'No chapter number present').to.exist;
         expect(entry?.langCode, 'No lang code present').to.exist;
     });

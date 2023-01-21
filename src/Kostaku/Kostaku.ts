@@ -28,7 +28,7 @@ export const KostakuInfo: SourceInfo = {
             type: TagType.GREEN
         }
     ]
-}
+};
 
 export class Kostaku extends BuonduaBase {
     baseUrl = DOMAIN;

@@ -28,7 +28,7 @@ export const BuonduaInfo: SourceInfo = {
             type: TagType.GREEN
         }
     ]
-}
+};
 
 export class Buondua extends BuonduaBase {
     baseUrl = DOMAIN;

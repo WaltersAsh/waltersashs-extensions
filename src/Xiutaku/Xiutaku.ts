@@ -28,7 +28,7 @@ export const XiutakuInfo: SourceInfo = {
             type: TagType.GREEN
         }
     ]
-}
+};
 
 export class Xiutaku extends BuonduaBase {
     baseUrl = DOMAIN;
