@@ -3594,10 +3594,6 @@ exports.BuonduaInfo = {
             type: paperback_extensions_common_1.TagType.RED
         },
         {
-            text: 'Unstable',
-            type: paperback_extensions_common_1.TagType.BLUE
-        },
-        {
             text: VERSION,
             type: paperback_extensions_common_1.TagType.GREEN
         }
