@@ -3570,48 +3570,6 @@ __exportStar(require("./RawData"), exports);
 
 },{"./Chapter":18,"./ChapterDetails":20,"./Constants":21,"./DynamicUI":52,"./HomeSection":54,"./Languages":55,"./Manga":57,"./MangaTile":59,"./MangaUpdate":61,"./PagedResults":63,"./RawData":65,"./RequestHeaders":66,"./RequestInterceptor":67,"./RequestManager":69,"./RequestObject":71,"./ResponseObject":72,"./SearchField":74,"./SearchRequest":75,"./SourceInfo":76,"./SourceManga":78,"./SourceStateManager":80,"./SourceTag":81,"./TagSection":83,"./TrackedManga":85,"./TrackedMangaChapterReadAction":86,"./TrackerActionQueue":87}],90:[function(require,module,exports){
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Buondua = exports.BuonduaInfo = void 0;
-const paperback_extensions_common_1 = require("paperback-extensions-common");
-const BuonduaBase_1 = __importDefault(require("../BuonduaBase"));
-const DOMAIN = 'https://buondua.com';
-const VERSION = '1.0.4';
-exports.BuonduaInfo = {
-    version: VERSION,
-    name: 'Buondua',
-    icon: 'icon.png',
-    author: 'WaltersAsh',
-    authorWebsite: 'https://github.com/WaltersAsh',
-    description: 'Extension to grab albums from Buon Dua',
-    contentRating: paperback_extensions_common_1.ContentRating.ADULT,
-    websiteBaseURL: DOMAIN,
-    sourceTags: [
-        {
-            text: '18+',
-            type: paperback_extensions_common_1.TagType.RED
-        },
-        {
-            text: VERSION,
-            type: paperback_extensions_common_1.TagType.GREEN
-        }
-    ]
-};
-class Buondua extends BuonduaBase_1.default {
-    constructor() {
-        super(...arguments);
-        this.baseUrl = DOMAIN;
-        this.hasEncodedUrls = false;
-        this.hasEncodedTags = true;
-        this.sourceName = 'Buondua';
-    }
-}
-exports.Buondua = Buondua;
-
-},{"../BuonduaBase":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
-"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaBaseParser_1 = require("./BuonduaBaseParser");
@@ -3752,7 +3710,7 @@ class Buondua extends paperback_extensions_common_1.Source {
 }
 exports.default = Buondua;
 
-},{"./BuonduaBaseParser":92,"paperback-extensions-common":16}],92:[function(require,module,exports){
+},{"./BuonduaBaseParser":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = void 0;
@@ -3867,5 +3825,47 @@ const isLastPage = ($) => {
 };
 exports.isLastPage = isLastPage;
 
-},{"entities":10}]},{},[90])(90)
+},{"entities":10}],92:[function(require,module,exports){
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Xiutaku = exports.XiutakuInfo = void 0;
+const paperback_extensions_common_1 = require("paperback-extensions-common");
+const BuonduaBase_1 = __importDefault(require("../BuonduaBase"));
+const DOMAIN = 'https://xiutaku.com';
+const VERSION = '1.0.0';
+exports.XiutakuInfo = {
+    version: VERSION,
+    name: 'Xiutaku',
+    icon: 'icon.png',
+    author: 'WaltersAsh',
+    authorWebsite: 'https://github.com/WaltersAsh',
+    description: 'Extension to grab albums from Xiutaku',
+    contentRating: paperback_extensions_common_1.ContentRating.ADULT,
+    websiteBaseURL: DOMAIN,
+    sourceTags: [
+        {
+            text: '18+',
+            type: paperback_extensions_common_1.TagType.RED
+        },
+        {
+            text: VERSION,
+            type: paperback_extensions_common_1.TagType.GREEN
+        }
+    ]
+};
+class Xiutaku extends BuonduaBase_1.default {
+    constructor() {
+        super(...arguments);
+        this.baseUrl = DOMAIN;
+        this.hasEncodedUrls = false;
+        this.sourceName = 'Xiutaku';
+        this.hasEncodedTags = false;
+    }
+}
+exports.Xiutaku = Xiutaku;
+
+},{"../BuonduaBase":90,"paperback-extensions-common":16}]},{},[92])(92)
 });
