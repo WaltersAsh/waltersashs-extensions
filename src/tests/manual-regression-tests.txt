@@ -2,6 +2,9 @@ Manual Regression Tests
 -----------------------
 Steps to spot bugs and to ensure extension/source is not breaking
 Used for regression/smoke testing
+Automation tests commands:
+    - paperback test
+    - npm test 
 
 1. First source page
 * Recently Uploaded (Discover) + View:

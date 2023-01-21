@@ -24,10 +24,6 @@ export const BuonduaInfo: SourceInfo = {
             type: TagType.RED
         },
         {
-            text: 'Unstable',
-            type: TagType.BLUE
-        },
-        {
             text: VERSION,
             type: TagType.GREEN
         }
