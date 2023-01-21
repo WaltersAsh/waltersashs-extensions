@@ -31,8 +31,10 @@ describe('Buondua Tests', () => {
         expect(data.image, 'Missing Image').to.be.not.empty;
         expect(data.status, 'Missing Status').to.exist;
         expect(data.author, 'Missing Author').to.be.not.empty;
+        expect(data.artist, 'Missing Artist').to.be.not.empty;
         expect(data.desc, 'Missing Description').to.be.not.empty;
         expect(data.titles, 'Missing Titles').to.be.not.empty;
+        expect(data.tags, 'Missing Tags').to.be.not.empty;
     });
 
     it('Get Chapters', async () => {
@@ -44,8 +46,9 @@ describe('Buondua Tests', () => {
         expect(entry?.id, 'No ID present').to.not.be.empty;
         expect(entry?.mangaId, 'MangaId Changed').to.be.eql(mangaId);
         expect(entry?.time, 'No date present').to.exist;
-        // expect(entry.name, "No title available").to.not.be.empty
+        expect(entry?.name, "No title available").to.not.be.empty
         expect(entry?.chapNum, 'No chapter number present').to.exist;
+        expect(entry?.langCode, 'No lang code present').to.exist;
     });
 
     it('Get Chapter Details', async () => {
@@ -62,20 +65,30 @@ describe('Buondua Tests', () => {
     });
 
     it('Testing search', async () => {
-        const testSearch: SearchRequest = {
-            title: 'cosplay',
-            parameters: {}
-        };
+        const searchTitles: string[] = [
+            'cosplay',
+            '예하',
+            'pure media',
+            'Aram (아람)',
+            ''
+        ];
+        
+        for (const title in searchTitles) {
+            const testSearch: SearchRequest = {
+                title: title,
+                parameters: {}
+            };
 
-        const search = await wrapper.searchRequest(source, testSearch, {offset: 0});
-        const result = search.results[0];
+            const search = await wrapper.searchRequest(source, testSearch, {offset: 0});
+            const result = search.results[0];
 
-        expect(result, 'No response from server').to.exist;
+            expect(result, 'No response from server').to.exist;
 
-        expect(result?.id, 'No ID found for search query').to.be.not.empty;
-        expect(result?.image, 'No image found for search').to.be.not.empty;
-        expect(result?.title, 'No title').to.be.not.null;
-        expect(result?.subtitleText, 'No subtitle text').to.be.not.null;
+            expect(result?.id, 'No ID found for search query').to.be.not.empty;
+            expect(result?.image, 'No image found for search').to.be.not.empty;
+            expect(result?.title, 'No title').to.be.not.null;
+            expect(result?.subtitleText, 'No subtitle text').to.be.not.null;
+        }
     });
 
     it('Testing Home-Page aquisition', async() => {
@@ -84,6 +97,24 @@ describe('Buondua Tests', () => {
         expect(homePages[0], 'No recently updated section available').to.exist;
         expect(homePages[1], 'No hot section available').to.exist;
     });
+
+    it('Testing home page results', async () => {
+        const homePages = await wrapper.getHomePageSections(source);
+        const resultsRecent = await wrapper.getViewMoreItems(source,  homePages[0]?.id ?? 'recent', {}, 1);
+        const resultsHot = await wrapper.getViewMoreItems(source,  homePages[1]?.id ?? 'hot', {}, 1);
+
+        expect(resultsRecent, 'Section recent does not exist').to.exist;
+        expect(resultsRecent, 'No results whatsoever for this section recent').to.be.not.empty;
+
+        expect(resultsHot, 'Section hot does not exist').to.exist;
+        expect(resultsHot, 'No results whatsoever for this section hot').to.be.not.empty;
+    });
+
+    // it('Get tags', async () => {
+    //     const tags = await wrapper.getTags(source);
+    //     expect(tags, 'No server response').to.exist;
+    //     expect(tags, 'Empty server response').to.not.be.empty;
+    // })
 
     // it('Testing Notifications', async () => {
     //     const updates = await wrapper.filterUpdatedManga(source, new Date('2023-1-9'), [mangaId]);
