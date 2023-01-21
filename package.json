@@ -1,8 +1,8 @@
 {
     "name": "waltersashs-extensions",
     "version": "2.0.0",
-    "repositoryName": "WaltersAsh's Extensions (Development)",
-    "description": "WaltersAsh's extensions in Development",
+    "repositoryName": "WaltersAsh's Extensions (0.6)",
+    "description": "WaltersAsh's extensions for 0.6",
     "main": "index.js",
     "scripts": {
         "bundle": "paperback bundle",
