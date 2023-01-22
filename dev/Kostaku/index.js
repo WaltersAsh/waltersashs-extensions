@@ -3838,9 +3838,8 @@ exports.Kostaku = exports.KostakuInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaBase_1 = __importDefault(require("../BuonduaBase"));
 const DOMAIN = 'https://kostaku.art';
-const VERSION = '1.0.3';
 exports.KostakuInfo = {
-    version: VERSION,
+    version: '1.0.3',
     name: 'Kostaku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -3852,10 +3851,6 @@ exports.KostakuInfo = {
         {
             text: '18+',
             type: paperback_extensions_common_1.TagType.RED
-        },
-        {
-            text: VERSION,
-            type: paperback_extensions_common_1.TagType.GREEN
         }
     ]
 };

@@ -1248,9 +1248,8 @@ exports.Xiutaku = exports.XiutakuInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaBase_1 = __importDefault(require("../BuonduaBase"));
 const DOMAIN = 'https://xiutaku.com';
-const VERSION = '1.0.0';
 exports.XiutakuInfo = {
-    version: VERSION,
+    version: '1.0.0',
     name: 'Xiutaku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1262,10 +1261,6 @@ exports.XiutakuInfo = {
         {
             text: '18+',
             type: paperback_extensions_common_1.TagType.RED
-        },
-        {
-            text: VERSION,
-            type: paperback_extensions_common_1.TagType.GREEN
         }
     ]
 };

@@ -988,9 +988,8 @@ exports.Buondua = exports.BuonduaInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaBase_1 = __importDefault(require("../BuonduaBase"));
 const DOMAIN = 'https://buondua.com';
-const VERSION = '1.0.4';
 exports.BuonduaInfo = {
-    version: VERSION,
+    version: '1.0.4',
     name: 'Buondua',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1003,10 +1002,6 @@ exports.BuonduaInfo = {
             text: '18+',
             type: paperback_extensions_common_1.TagType.RED
         },
-        {
-            text: VERSION,
-            type: paperback_extensions_common_1.TagType.GREEN
-        }
     ]
 };
 class Buondua extends BuonduaBase_1.default {
