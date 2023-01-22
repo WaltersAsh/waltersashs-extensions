@@ -3645,6 +3645,7 @@ class AsianToLick extends paperback_extensions_common_1.Source {
         hotAlbumsSection.items = hotAlbums;
         sectionCallback(hotAlbumsSection);
     }
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
         const albumNum = metadata?.page ?? 0;
         let param = '';
@@ -3707,6 +3708,7 @@ class AsianToLick extends paperback_extensions_common_1.Source {
             pages: await (0, AsianToLickParser_1.getPages)(mangaId, this.requestManager, this.cheerio)
         });
     }
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query, metadata) {
         const albumNum = metadata?.page ?? 0;
         let request;
