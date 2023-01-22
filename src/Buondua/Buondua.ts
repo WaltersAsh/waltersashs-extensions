@@ -7,10 +7,9 @@ import {
 import BuonduaBase from '../BuonduaBase';
 
 const DOMAIN = 'https://buondua.com';
-const VERSION = '1.0.4';
 
 export const BuonduaInfo: SourceInfo = {
-    version: VERSION,
+    version: '1.0.4',
     name: 'Buondua',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -23,10 +22,6 @@ export const BuonduaInfo: SourceInfo = {
             text: '18+',
             type: TagType.RED
         },
-        {
-            text: VERSION,
-            type: TagType.GREEN
-        }
     ]
 };
 
