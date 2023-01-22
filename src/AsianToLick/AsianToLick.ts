@@ -99,6 +99,7 @@ export class AsianToLick extends Source {
         sectionCallback(hotAlbumsSection);
     }
 
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     override async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
         const albumNum: number = metadata?.page ?? 0;
 
@@ -170,6 +171,7 @@ export class AsianToLick extends Source {
         });
     }
 
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     override async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
         const albumNum: number = metadata?.page ?? 0;
 
