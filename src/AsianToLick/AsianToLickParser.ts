@@ -48,7 +48,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data);
 
-    const title = $('h1').first().text();
+    const title = decodeURIComponent($('h1').first().text());
     const image = $('img.miniaturaImg').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
 
     const descInfo = $('b').first().parent().parent().children().toArray();
@@ -57,13 +57,13 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     descInfo.forEach(x => desc += $(x).text() + '\n');
 
     const tagHeader = $('div#categoria_tags_post').first();
-    const cat = $('span', tagHeader).first();
-    const tags = $('span', tagHeader).last().toArray();
+    const tags = $('a', tagHeader).toArray();
 
     const tagsToRender: Tag[] = [];
     for (const tag of tags) {
-        const label = $('a', tag).text();
+        const label = $(tag).text().trim();
         const id = $(tag).attr('href');
+        console.log(id);
         if (!id || !label) {
             continue;
         }
