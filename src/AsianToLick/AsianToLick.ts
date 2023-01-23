@@ -140,8 +140,8 @@ export class AsianToLick extends Source {
             image: data.image,
             status: MangaStatus.UNKNOWN,
             langFlag: LanguageCode.UNKNOWN,
-            author: 'Buondua',
-            artist: 'Buondua',
+            author: 'ATL',
+            artist: 'ATL',
             tags: data.tags,
             desc: data.desc
         });
