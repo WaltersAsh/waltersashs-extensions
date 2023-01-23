@@ -3681,8 +3681,8 @@ class AsianToLick extends paperback_extensions_common_1.Source {
             image: data.image,
             status: paperback_extensions_common_1.MangaStatus.UNKNOWN,
             langFlag: paperback_extensions_common_1.LanguageCode.UNKNOWN,
-            author: 'Buondua',
-            artist: 'Buondua',
+            author: 'ATL',
+            artist: 'ATL',
             tags: data.tags,
             desc: data.desc
         });
@@ -3739,24 +3739,27 @@ exports.AsianToLick = AsianToLick;
 },{"./AsianToLickParser":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = exports.DOMAIN = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_PATH_NAME = exports.REGEX_ASIAN = exports.DOMAIN = void 0;
 const entities = require("entities");
 exports.DOMAIN = 'https://asiantolick.com';
 exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
+exports.REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
 function getAlbums($) {
     const albums = [];
     const albumGroups = $('a.miniatura').toArray();
     for (const album of albumGroups) {
         const imgInfo = $('div.background_miniatura', album);
-        console.log(imgInfo.val);
         const image = $('div.background_miniatura img', imgInfo).attr('src') ?? '';
         const title = $('div.background_miniatura img', imgInfo).attr('alt') ?? '';
-        const id = $(album).attr('href')?.replace(/\/$/, '')?.split('/').pop() ?? '';
+        const path = exports.REGEX_PATH_NAME.exec($(album).attr('href') ?? '')?.toString().split(',')[1] ?? '';
+        const pathSplit = path.split('/');
+        let id = '';
+        pathSplit.forEach(x => id += x.match(exports.REGEX_ASIAN) ? encodeURIComponent(x) + '/' : x + '/');
         if (!id || !title) {
             continue;
         }
         albums.push(createMangaTile({
-            id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
+            id: id,
             image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
             title: createIconText({ text: entities.decodeHTML(title) })
         }));
@@ -3765,39 +3768,42 @@ function getAlbums($) {
 }
 exports.getAlbums = getAlbums;
 async function getGalleryData(id, requestManager, cheerio) {
-    // const request = createRequestObject({
-    //     url: `${DOMAIN}/${id}`,
-    //     method: 'GET'
-    // });
-    // const data = await requestManager.schedule(request, 1);
-    // const $ = cheerio.load(data.data);
-    // const title = $('div.article-header').first().text();
-    // const image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-    // const desc = $('small', 'div.article-info').last().text();
-    // const tagHeader = $('div.article-tags').first();
-    // const tags = $('a.tag', tagHeader).toArray();
-    // const tagsToRender: Tag[] = [];
-    // for (const tag of tags) {
-    //     const label = $('span', tag).text();
-    //     const id = $(tag).attr('href');
-    //     if (!id || !label) {
-    //         continue;
-    //     }
-    //     tagsToRender.push({ id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label });
-    // }
-    // const tagSections: TagSection[] = [createTagSection({
-    //     id: '0',
-    //     label: 'Tags',
-    //     tags: tagsToRender.map(x => createTag(x)) 
-    // })];
-    // return {
-    //     id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id,
-    //     titles: [title],
-    //     image: image,
-    //     tags: tagSections,
-    //     desc: desc
-    // };
-    throw new Error('Not implemented!');
+    const request = createRequestObject({
+        url: `${exports.DOMAIN}/${id}`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data);
+    const title = $('h1').first().text();
+    const image = $('img.miniaturaImg').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+    const descInfo = $('b').first().parent().parent().children().toArray();
+    descInfo.pop();
+    let desc = '';
+    descInfo.forEach(x => desc += $(x).text() + '\n');
+    const tagHeader = $('div#categoria_tags_post').first();
+    const cat = $('span', tagHeader).first();
+    const tags = $('span', tagHeader).last().toArray();
+    const tagsToRender = [];
+    for (const tag of tags) {
+        const label = $('a', tag).text();
+        const id = $(tag).attr('href');
+        if (!id || !label) {
+            continue;
+        }
+        tagsToRender.push({ id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label });
+    }
+    const tagSections = [createTagSection({
+            id: '0',
+            label: 'Tags',
+            tags: tagsToRender.map(x => createTag(x))
+        })];
+    return {
+        id: id,
+        titles: [title],
+        image: image,
+        tags: tagSections,
+        desc: desc
+    };
 }
 exports.getGalleryData = getGalleryData;
 async function getPages(id, requestManager, cheerio) {
