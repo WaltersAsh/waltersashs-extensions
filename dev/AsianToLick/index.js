@@ -3647,14 +3647,14 @@ class AsianToLick extends paperback_extensions_common_1.Source {
     }
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
-        const albumNum = metadata?.page ?? 0;
+        const results = metadata?.page ?? 0;
         let param = '';
         switch (homepageSectionId) {
             case 'recent':
-                param = '/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=news&index=&ver=43';
+                param = `/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=news&index=${results}&ver=43`;
                 break;
             case 'hot':
-                param = '/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=&index=&ver=22';
+                param = `/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=&index=${results}&ver=22`;
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
@@ -3667,7 +3667,7 @@ class AsianToLick extends paperback_extensions_common_1.Source {
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data);
         const albums = (0, AsianToLickParser_1.getAlbums)($);
-        metadata = !(0, AsianToLickParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
+        metadata = !(0, AsianToLickParser_1.isLastPage)($) ? { page: results + 1 } : undefined;
         return createPagedResults({
             results: albums,
             metadata
@@ -3710,24 +3710,24 @@ class AsianToLick extends paperback_extensions_common_1.Source {
     }
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query, metadata) {
-        const albumNum = metadata?.page ?? 0;
+        const results = metadata?.page ?? 0;
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=${encodeURIComponent(query.title)}&page=&index=${albumNum}&ver=74`,
+                url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=${encodeURIComponent(query.title)}&page=&index=${results}&ver=74`,
                 method: 'GET'
             });
         }
         else {
             request = createRequestObject({
-                url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${query.includedTags?.map((x) => encodeURIComponent(x.id))}&search=&page=&index=${albumNum}&ver=79)`,
+                url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${query.includedTags?.map((x) => encodeURIComponent(x.id))}&search=&page=&index=${results}&ver=79)`,
                 method: 'GET'
             });
         }
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data);
         const albums = (0, AsianToLickParser_1.getAlbums)($);
-        metadata = !(0, AsianToLickParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
+        metadata = !(0, AsianToLickParser_1.isLastPage)($) ? { page: results + 1 } : undefined;
         return createPagedResults({
             results: albums,
             metadata
@@ -3739,11 +3739,12 @@ exports.AsianToLick = AsianToLick;
 },{"./AsianToLickParser":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_PATH_NAME = exports.REGEX_ASIAN = exports.DOMAIN = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_EMOJIS = exports.REGEX_PATH_NAME = exports.REGEX_ASIAN = exports.DOMAIN = void 0;
 const entities = require("entities");
 exports.DOMAIN = 'https://asiantolick.com';
 exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 exports.REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
+exports.REGEX_EMOJIS = /\p{Extended_Pictographic}/u;
 function getAlbums($) {
     const albums = [];
     const albumGroups = $('a.miniatura').toArray();
@@ -3767,6 +3768,7 @@ function getAlbums($) {
     return albums;
 }
 exports.getAlbums = getAlbums;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getGalleryData(id, requestManager, cheerio) {
     const request = createRequestObject({
         url: `${exports.DOMAIN}/${id}`,
@@ -3780,13 +3782,23 @@ async function getGalleryData(id, requestManager, cheerio) {
     descInfo.pop();
     let desc = '';
     descInfo.forEach(x => desc += $(x).text() + '\n');
+    // Need to detect and encode emoji from unicode
+    // descInfo.forEach(x => {
+    //     const text = $(x).text();
+    //     const split = text.split(' ');
+    //     if (split[0]?.match(REGEX_EMOJIS)) {
+    //         split[0] = (String.fromCodePoint(parseInt(split[0].slice(2,-1))));
+    //     }
+    //     desc = split.toString();
+    //     desc += $(x).text() + '\n';
+    // });
     const tagHeader = $('div#categoria_tags_post').first();
     const tags = $('a', tagHeader).toArray();
+    // Probably need to cut down id
     const tagsToRender = [];
     for (const tag of tags) {
         const label = $(tag).text().trim();
         const id = $(tag).attr('href');
-        console.log(id);
         if (!id || !label) {
             continue;
         }
@@ -3807,42 +3819,20 @@ async function getGalleryData(id, requestManager, cheerio) {
 }
 exports.getGalleryData = getGalleryData;
 async function getPages(id, requestManager, cheerio) {
-    // const request = createRequestObject({
-    //     url: `${DOMAIN}/${id}`,
-    //     method: 'GET'
-    // });
-    // const data = await requestManager.schedule(request, 1);
-    // const $ = cheerio.load(data.data);
-    // const pages: string[] = [];
-    // const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
-    // for (let i = 0; i < pageCount; i++) {
-    //     const request = createRequestObject({
-    //         url: `${DOMAIN}/${id}?page=${i + 1}`,
-    //         method: 'GET'
-    //     });
-    //     const data = await requestManager.schedule(request, 1);
-    //     const $ = cheerio.load(data.data);
-    //     const images = $('p', 'div.article-fulltext').toArray();
-    //     for (const img of images) {
-    //         const imageString = $('img', img).attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-    //         pages.push(imageString);
-    //     }
-    // }
-    // return pages;
-    throw new Error('Not implemented!');
+    const request = createRequestObject({
+        url: `${exports.DOMAIN}/${id}`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data);
+    const pages = [];
+    const pageItems = $('div.spotlight', 'article').toArray();
+    pageItems.forEach(x => pages.push($(x).attr('data-src') ?? 'https://i.imgur.com/GYUxEX8.png'));
+    return pages;
 }
 exports.getPages = getPages;
 const isLastPage = ($) => {
-    // const nav = $('nav.pagination', 'div.is-full.main-container');
-    // const pageList = $('ul.pagination-list', nav);
-    // const lastPageNum = parseInt($('li', pageList).last().text());
-    // const currPageNum = parseInt($('a.is-current', pageList).text());
-    // return (isNaN(lastPageNum) || 
-    //         isNaN(currPageNum) ||
-    //         lastPageNum === -1 || 
-    //         lastPageNum === currPageNum ? 
-    //     true : false);
-    throw new Error('Not implemented!');
+    return $('body').text() === 'fim';
 };
 exports.isLastPage = isLastPage;
 
