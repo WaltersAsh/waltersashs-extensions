@@ -10,6 +10,7 @@ import entities = require('entities');
 export const DOMAIN = 'https://asiantolick.com';
 export const REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 export const REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
+export const REGEX_EMOJIS = /\p{Extended_Pictographic}/u;
 
 export function getAlbums ($: CheerioStatic): MangaTile[] {
     const albums: MangaTile[] = [];
@@ -40,6 +41,7 @@ export function getAlbums ($: CheerioStatic): MangaTile[] {
     return albums;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getGalleryData(id: string, requestManager: RequestManager, cheerio: CheerioAPI): Promise<any> {
     const request = createRequestObject({
         url: `${DOMAIN}/${id}`,
@@ -56,14 +58,26 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     let desc = '';
     descInfo.forEach(x => desc += $(x).text() + '\n');
 
+    // Need to detect and encode emoji from unicode
+    // descInfo.forEach(x => {
+    //     const text = $(x).text();
+    //     const split = text.split(' ');
+    //     if (split[0]?.match(REGEX_EMOJIS)) {
+    //         split[0] = (String.fromCodePoint(parseInt(split[0].slice(2,-1))));
+    //     }
+    //     desc = split.toString();
+    //     desc += $(x).text() + '\n';
+    // });
+
     const tagHeader = $('div#categoria_tags_post').first();
     const tags = $('a', tagHeader).toArray();
 
+    // Probably need to cut down id
     const tagsToRender: Tag[] = [];
     for (const tag of tags) {
         const label = $(tag).text().trim();
         const id = $(tag).attr('href');
-        console.log(id);
+        
         if (!id || !label) {
             continue;
         }
@@ -86,47 +100,20 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
 }
 
 export async function getPages(id: string, requestManager: RequestManager, cheerio: CheerioAPI): Promise<string[]> {
-    // const request = createRequestObject({
-    //     url: `${DOMAIN}/${id}`,
-    //     method: 'GET'
-    // });
-    // const data = await requestManager.schedule(request, 1);
-    // const $ = cheerio.load(data.data);
+    const request = createRequestObject({
+        url: `${DOMAIN}/${id}`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data);
     
-    // const pages: string[] = [];
-    // const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
+    const pages: string[] = [];
+    const pageItems = $('div.spotlight', 'article').toArray();
+    pageItems.forEach(x =>pages.push($(x).attr('data-src') ?? 'https://i.imgur.com/GYUxEX8.png'));
 
-    // for (let i = 0; i < pageCount; i++) {
-    //     const request = createRequestObject({
-    //         url: `${DOMAIN}/${id}?page=${i + 1}`,
-    //         method: 'GET'
-    //     });
-    //     const data = await requestManager.schedule(request, 1);
-    //     const $ = cheerio.load(data.data);
-
-    //     const images = $('p', 'div.article-fulltext').toArray();
-    //     for (const img of images) {
-    //         const imageString = $('img', img).attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-    //         pages.push(imageString);
-    //     }
-    // }
-
-    // return pages;
-
-    throw new Error('Not implemented!');
+    return pages;
 }
 
 export const isLastPage = ($: CheerioStatic): boolean => {
-    // const nav = $('nav.pagination', 'div.is-full.main-container');
-    // const pageList = $('ul.pagination-list', nav);
-    // const lastPageNum = parseInt($('li', pageList).last().text());
-    // const currPageNum = parseInt($('a.is-current', pageList).text());
-
-    // return (isNaN(lastPageNum) || 
-    //         isNaN(currPageNum) ||
-    //         lastPageNum === -1 || 
-    //         lastPageNum === currPageNum ? 
-    //     true : false);
-
-    throw new Error('Not implemented!');
+    return $('body').text() === 'fim';
 };

@@ -101,15 +101,15 @@ export class AsianToLick extends Source {
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     override async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
-        const albumNum: number = metadata?.page ?? 0;
+        const results: number = metadata?.page ?? 0;
 
         let param = '';
         switch (homepageSectionId) {
             case 'recent':
-                param = '/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=news&index=&ver=43';
+                param = `/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=news&index=${results}&ver=43`;
                 break;
             case 'hot':
-                param = '/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=&index=&ver=22';
+                param = `/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=&index=${results}&ver=22`;
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
@@ -124,7 +124,7 @@ export class AsianToLick extends Source {
         const $ = this.cheerio.load(response.data);
         
         const albums = getAlbums($);
-        metadata = !isLastPage($) ? {page: albumNum + albums.length} : undefined;
+        metadata = !isLastPage($) ? {page: results + 1} : undefined;
         return createPagedResults({
             results: albums,
             metadata
@@ -173,18 +173,18 @@ export class AsianToLick extends Source {
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     override async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
-        const albumNum: number = metadata?.page ?? 0;
+        const results: number = metadata?.page ?? 0;
 
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=${encodeURIComponent(query.title)}&page=&index=${albumNum}&ver=74`,
+                url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=${encodeURIComponent(query.title)}&page=&index=${results}&ver=74`,
                 method: 'GET'
             });
         } else {
             request = createRequestObject({
                 url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${query.includedTags?.map((x) => 
-                    encodeURIComponent(x.id))}&search=&page=&index=${albumNum}&ver=79)`,
+                    encodeURIComponent(x.id))}&search=&page=&index=${results}&ver=79)`,
                 method: 'GET'
             });
         }
@@ -192,7 +192,7 @@ export class AsianToLick extends Source {
         const $ = this.cheerio.load(response.data);
 
         const albums = getAlbums($);
-        metadata = !isLastPage($) ? {page: albumNum + albums.length} : undefined;
+        metadata = !isLastPage($) ? {page: results + 1} : undefined;
         
         return createPagedResults({
             results: albums,
