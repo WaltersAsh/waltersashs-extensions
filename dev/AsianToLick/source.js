@@ -1033,6 +1033,20 @@ class AsianToLick extends paperback_extensions_common_1.Source {
     getMangaShareUrl(mangaId) {
         return `${AsianToLickParser_1.DOMAIN}/${mangaId}`;
     }
+    async getSearchTags() {
+        return [
+            createTagSection({
+                id: 'cats', label: 'Categories', tags: [
+                    createTag({ id: '', label: '' }),
+                ]
+            }),
+            createTagSection({
+                id: 'tags', label: 'Tags', tags: [
+                    createTag({ id: '', label: '' }),
+                ]
+            }),
+        ];
+    }
     async getHomePageSections(sectionCallback) {
         const requestForRecent = createRequestObject({
             url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=news&index=&ver=43`,
@@ -1129,6 +1143,24 @@ class AsianToLick extends paperback_extensions_common_1.Source {
             });
         }
         else {
+            // Need to figure out how to differentiate cat and tags - prob move tag parsing here
+            // const tagIds = query.includedTags?.map((x) => encodeURIComponent(x.id));
+            // for (const tagId in tagIds) {
+            //     const idSplit = tagId.split('-');
+            //     const isCat = idSplit[0]?.toString() === 'category';
+            //     const id = idSplit[1]?.split('/')[0]?.toString();
+            //     if (isCat) {
+            //         request = createRequestObject({
+            //             url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=${id}&tag=&search=&page=&index=${results}&ver=79)`,
+            //             method: 'GET'
+            //         });
+            //     } else {
+            //         request = createRequestObject({
+            //             url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${id}&search=&page=&index=${results}&ver=79)`,
+            //             method: 'GET'
+            //         });
+            //     }
+            // }
             request = createRequestObject({
                 url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${query.includedTags?.map((x) => encodeURIComponent(x.id))}&search=&page=&index=${results}&ver=79)`,
                 method: 'GET'
@@ -1204,11 +1236,13 @@ async function getGalleryData(id, requestManager, cheerio) {
     // });
     const tagHeader = $('div#categoria_tags_post').first();
     const tags = $('a', tagHeader).toArray();
-    // Probably need to cut down id
     const tagsToRender = [];
     for (const tag of tags) {
         const label = $(tag).text().trim();
-        const id = $(tag).attr('href');
+        const tagId = exports.REGEX_PATH_NAME.exec($(tag).attr('href') ?? '')?.toString().split(',')[1]?.split('/')[0] ?? '';
+        // Probably need to move this to getSearchResults to decide if cat or tag
+        const idSplit = tagId.split('-');
+        const id = idSplit[1]?.split('/')[0]?.toString();
         if (!id || !label) {
             continue;
         }
