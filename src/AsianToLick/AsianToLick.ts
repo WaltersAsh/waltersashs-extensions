@@ -7,6 +7,7 @@ import {
     SearchRequest,
     PagedResults,
     SourceInfo,
+    TagSection,
     TagType,
     Request,
     RequestManager,
@@ -73,6 +74,21 @@ export class AsianToLick extends Source {
 
     override getMangaShareUrl(mangaId: string): string {
         return `${DOMAIN}/${mangaId}`;
+    }
+
+    override async getSearchTags(): Promise<TagSection[]> {
+        return [
+            createTagSection({
+                id: 'cats', label: 'Categories', tags: [
+                    createTag({ id: '', label: '' }),
+                ]
+            }),
+            createTagSection({
+                id: 'tags', label: 'Tags', tags: [
+                    createTag({ id: '', label: '' }),
+                ]
+            }),
+        ];
     }
 
     override async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
@@ -182,6 +198,25 @@ export class AsianToLick extends Source {
                 method: 'GET'
             });
         } else {
+            // Need to figure out how to differentiate cat and tags - prob move tag parsing here
+            // const tagIds = query.includedTags?.map((x) => encodeURIComponent(x.id));
+            // for (const tagId in tagIds) {
+            //     const idSplit = tagId.split('-');
+            //     const isCat = idSplit[0]?.toString() === 'category';
+            //     const id = idSplit[1]?.split('/')[0]?.toString();
+
+            //     if (isCat) {
+            //         request = createRequestObject({
+            //             url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=${id}&tag=&search=&page=&index=${results}&ver=79)`,
+            //             method: 'GET'
+            //         });
+            //     } else {
+            //         request = createRequestObject({
+            //             url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${id}&search=&page=&index=${results}&ver=79)`,
+            //             method: 'GET'
+            //         });
+            //     }
+            // }
             request = createRequestObject({
                 url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${query.includedTags?.map((x) => 
                     encodeURIComponent(x.id))}&search=&page=&index=${results}&ver=79)`,

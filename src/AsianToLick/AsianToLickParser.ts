@@ -72,11 +72,13 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     const tagHeader = $('div#categoria_tags_post').first();
     const tags = $('a', tagHeader).toArray();
 
-    // Probably need to cut down id
     const tagsToRender: Tag[] = [];
     for (const tag of tags) {
         const label = $(tag).text().trim();
-        const id = $(tag).attr('href');
+        const tagId = REGEX_PATH_NAME.exec($(tag).attr('href') ?? '')?.toString().split(',')[1]?.split('/')[0] ?? '';
+        // Probably need to move this to getSearchResults to decide if cat or tag
+        const idSplit = tagId.split('-');
+        const id = idSplit[1]?.split('/')[0]?.toString();
         
         if (!id || !label) {
             continue;
