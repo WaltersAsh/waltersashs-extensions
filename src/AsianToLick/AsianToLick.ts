@@ -197,31 +197,27 @@ export class AsianToLick extends Source {
                 url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=${encodeURIComponent(query.title)}&page=&index=${results}&ver=74`,
                 method: 'GET'
             });
-        } else {
-            // Need to figure out how to differentiate cat and tags - prob move tag parsing here
-            // const tagIds = query.includedTags?.map((x) => encodeURIComponent(x.id));
-            // for (const tagId in tagIds) {
-            //     const idSplit = tagId.split('-');
-            //     const isCat = idSplit[0]?.toString() === 'category';
-            //     const id = idSplit[1]?.split('/')[0]?.toString();
+        } else {      
+            let isCat = false;
+            let id;
+            const queryId = query.includedTags?.map((x) => encodeURIComponent(x.id)) ?? [];
+            const idSplit = queryId[0]?.split('-');
 
-            //     if (isCat) {
-            //         request = createRequestObject({
-            //             url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=${id}&tag=&search=&page=&index=${results}&ver=79)`,
-            //             method: 'GET'
-            //         });
-            //     } else {
-            //         request = createRequestObject({
-            //             url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${id}&search=&page=&index=${results}&ver=79)`,
-            //             method: 'GET'
-            //         });
-            //     }
-            // }
-            request = createRequestObject({
-                url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${query.includedTags?.map((x) => 
-                    encodeURIComponent(x.id))}&search=&page=&index=${results}&ver=79)`,
-                method: 'GET'
-            });
+            if (idSplit) {
+                isCat = idSplit[0]?.toString() === 'category';
+                id = idSplit[1]?.split('/')[0]?.toString();
+            }
+            if (isCat) {
+                request = createRequestObject({
+                    url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=${id}&tag=&search=&page=&index=${results}&ver=79)`,
+                    method: 'GET'
+                });
+            } else {
+                request = createRequestObject({
+                    url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${id}&search=&page=&index=${results}&ver=79)`,
+                    method: 'GET'
+                });
+            }
         }
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data);
