@@ -12,6 +12,36 @@ export const REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaf
 export const REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
 export const REGEX_EMOJIS = /\p{Extended_Pictographic}/u;
 
+export async function getTags(requestManager: RequestManager, cheerio: CheerioAPI): Promise<Tag[][]> {
+    const request = createRequestObject({
+        url: `${DOMAIN}/page/categories`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data);
+    
+    const cats = [];
+    const tags = [];
+    const genres = $('a', 'div#wrap').toArray();
+    for (let i = 0; i < genres.length; i++) {
+        const id = REGEX_PATH_NAME.exec($(genres[i]).attr('href') ?? '')?.toString().split(',')[1]?.split('/')[0] ?? '';
+        const label = $('img', $(genres[i])).attr('alt') ?? '';
+        const isCat = id.split('-')[0]?.toString() === 'category';
+        console.log('ID: ' + id);
+        console.log('LABEL: ' + label);
+
+        if (id) {
+            if (isCat) {
+                cats.push(createTag({ id, label }));
+            } else {
+                tags.push(createTag({ id, label }));
+            }
+        }   
+    }
+
+    return [cats, tags];
+}
+
 export function getAlbums ($: CheerioStatic): MangaTile[] {
     const albums: MangaTile[] = [];
     const albumGroups = $('a.miniatura').toArray();

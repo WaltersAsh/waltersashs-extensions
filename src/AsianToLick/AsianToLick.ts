@@ -23,16 +23,17 @@ import {
     getAlbums,
     getGalleryData,
     getPages,
-    isLastPage
+    getTags,
+    isLastPage,
 } from './AsianToLickParser';
 
 export const AsianToLickInfo: SourceInfo = {
     version: '1.0.0',
-    name: 'Asian To Lick',
+    name: 'Asian to lick',
     icon: 'icon.png',
     author: 'WaltersAsh',
     authorWebsite: 'https://github.com/WaltersAsh',
-    description: 'Extension to grab albums from Asian To Lick',
+    description: 'Extension to grab albums from Asian to lick',
     contentRating: ContentRating.ADULT,
     websiteBaseURL: DOMAIN,
     sourceTags: [
@@ -43,11 +44,7 @@ export const AsianToLickInfo: SourceInfo = {
         {
             text: 'In Dev',
             type: TagType.GREY
-        },
-        {
-            text: 'Broken',
-            type: TagType.YELLOW
-        },
+        }
     ]
 };
 
@@ -77,16 +74,14 @@ export class AsianToLick extends Source {
     }
 
     override async getSearchTags(): Promise<TagSection[]> {
+        const genres = await getTags(this.requestManager, this.cheerio);
+       
         return [
             createTagSection({
-                id: 'cats', label: 'Categories', tags: [
-                    createTag({ id: '', label: '' }),
-                ]
+                id: 'cats', label: 'Categories', tags: genres[0] ?? []
             }),
             createTagSection({
-                id: 'tags', label: 'Tags', tags: [
-                    createTag({ id: '', label: '' }),
-                ]
+                id: 'tags', label: 'Tags', tags: genres[1] ?? []
             }),
         ];
     }
