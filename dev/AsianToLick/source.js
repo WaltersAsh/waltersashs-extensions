@@ -986,11 +986,11 @@ const paperback_extensions_common_1 = require("paperback-extensions-common");
 const AsianToLickParser_1 = require("./AsianToLickParser");
 exports.AsianToLickInfo = {
     version: '1.0.0',
-    name: 'Asian To Lick',
+    name: 'Asian to lick',
     icon: 'icon.png',
     author: 'WaltersAsh',
     authorWebsite: 'https://github.com/WaltersAsh',
-    description: 'Extension to grab albums from Asian To Lick',
+    description: 'Extension to grab albums from Asian to lick',
     contentRating: paperback_extensions_common_1.ContentRating.ADULT,
     websiteBaseURL: AsianToLickParser_1.DOMAIN,
     sourceTags: [
@@ -1001,11 +1001,7 @@ exports.AsianToLickInfo = {
         {
             text: 'In Dev',
             type: paperback_extensions_common_1.TagType.GREY
-        },
-        {
-            text: 'Broken',
-            type: paperback_extensions_common_1.TagType.YELLOW
-        },
+        }
     ]
 };
 class AsianToLick extends paperback_extensions_common_1.Source {
@@ -1034,16 +1030,13 @@ class AsianToLick extends paperback_extensions_common_1.Source {
         return `${AsianToLickParser_1.DOMAIN}/${mangaId}`;
     }
     async getSearchTags() {
+        const genres = await (0, AsianToLickParser_1.getTags)(this.requestManager, this.cheerio);
         return [
             createTagSection({
-                id: 'cats', label: 'Categories', tags: [
-                    createTag({ id: '', label: '' }),
-                ]
+                id: 'cats', label: 'Categories', tags: genres[0] ?? []
             }),
             createTagSection({
-                id: 'tags', label: 'Tags', tags: [
-                    createTag({ id: '', label: '' }),
-                ]
+                id: 'tags', label: 'Tags', tags: genres[1] ?? []
             }),
         ];
     }
@@ -1179,12 +1172,40 @@ exports.AsianToLick = AsianToLick;
 },{"./AsianToLickParser":57,"paperback-extensions-common":13}],57:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_EMOJIS = exports.REGEX_PATH_NAME = exports.REGEX_ASIAN = exports.DOMAIN = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.REGEX_EMOJIS = exports.REGEX_PATH_NAME = exports.REGEX_ASIAN = exports.DOMAIN = void 0;
 const entities = require("entities");
 exports.DOMAIN = 'https://asiantolick.com';
 exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 exports.REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
 exports.REGEX_EMOJIS = /\p{Extended_Pictographic}/u;
+async function getTags(requestManager, cheerio) {
+    const request = createRequestObject({
+        url: `${exports.DOMAIN}/page/categories`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data);
+    const cats = [];
+    const tags = [];
+    const genres = $('a', 'div#wrap').toArray();
+    for (let i = 0; i < genres.length; i++) {
+        const id = exports.REGEX_PATH_NAME.exec($(genres[i]).attr('href') ?? '')?.toString().split(',')[1]?.split('/')[0] ?? '';
+        const label = $('img', $(genres[i])).attr('alt') ?? '';
+        const isCat = id.split('-')[0]?.toString() === 'category';
+        console.log('ID: ' + id);
+        console.log('LABEL: ' + label);
+        if (id) {
+            if (isCat) {
+                cats.push(createTag({ id, label }));
+            }
+            else {
+                tags.push(createTag({ id, label }));
+            }
+        }
+    }
+    return [cats, tags];
+}
+exports.getTags = getTags;
 function getAlbums($) {
     const albums = [];
     const albumGroups = $('a.miniatura').toArray();
