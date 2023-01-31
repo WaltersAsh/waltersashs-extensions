@@ -3571,12 +3571,30 @@ __exportStar(require("./RawData"), exports);
 },{"./Chapter":18,"./ChapterDetails":20,"./Constants":21,"./DynamicUI":52,"./HomeSection":54,"./Languages":55,"./Manga":57,"./MangaTile":59,"./MangaUpdate":61,"./PagedResults":63,"./RawData":65,"./RequestHeaders":66,"./RequestInterceptor":67,"./RequestManager":69,"./RequestObject":71,"./ResponseObject":72,"./SearchField":74,"./SearchRequest":75,"./SourceInfo":76,"./SourceManga":78,"./SourceStateManager":80,"./SourceTag":81,"./TagSection":83,"./TrackedManga":85,"./TrackedMangaChapterReadAction":86,"./TrackerActionQueue":87}],90:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SOURCE_VERSION = void 0;
+exports.AsianToLick = exports.AsianToLickInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
-const BuonduaBaseParser_1 = require("./BuonduaBaseParser");
-exports.SOURCE_VERSION = '1.1.0';
-const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15';
-class Buondua extends paperback_extensions_common_1.Source {
+const AsianToLickParser_1 = require("./AsianToLickParser");
+exports.AsianToLickInfo = {
+    version: '1.0.0',
+    name: 'Asian to lick',
+    icon: 'icon.png',
+    author: 'WaltersAsh',
+    authorWebsite: 'https://github.com/WaltersAsh',
+    description: 'Extension to grab albums from Asian to lick',
+    contentRating: paperback_extensions_common_1.ContentRating.ADULT,
+    websiteBaseURL: AsianToLickParser_1.DOMAIN,
+    sourceTags: [
+        {
+            text: '18+',
+            type: paperback_extensions_common_1.TagType.RED
+        },
+        {
+            text: 'In Dev',
+            type: paperback_extensions_common_1.TagType.GREY
+        }
+    ]
+};
+class AsianToLick extends paperback_extensions_common_1.Source {
     constructor() {
         super(...arguments);
         this.requestManager = createRequestManager({
@@ -3587,8 +3605,7 @@ class Buondua extends paperback_extensions_common_1.Source {
                     request.headers = {
                         ...(request.headers ?? {}),
                         ...{
-                            'user-agent': USER_AGENT,
-                            'referer': this.baseUrl
+                            'referer': AsianToLickParser_1.DOMAIN
                         }
                     };
                     return request;
@@ -3600,74 +3617,85 @@ class Buondua extends paperback_extensions_common_1.Source {
         });
     }
     getMangaShareUrl(mangaId) {
-        return `${this.baseUrl}/${mangaId}`;
+        return `${AsianToLickParser_1.DOMAIN}/${mangaId}`;
+    }
+    async getSearchTags() {
+        const genres = await (0, AsianToLickParser_1.getTags)(this.requestManager, this.cheerio);
+        return [
+            createTagSection({
+                id: 'cats', label: 'Categories', tags: genres[0] ?? []
+            }),
+            createTagSection({
+                id: 'tags', label: 'Tags', tags: genres[1] ?? []
+            }),
+        ];
     }
     async getHomePageSections(sectionCallback) {
         const requestForRecent = createRequestObject({
-            url: `${this.baseUrl}`,
+            url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=news&index=&ver=43`,
             method: 'GET'
         });
         const responseForRecent = await this.requestManager.schedule(requestForRecent, 1);
         const $recent = this.cheerio.load(responseForRecent.data);
-        const recentAlbumsSection = createHomeSection({ id: 'recent', title: 'Recently Uploaded', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
-        const recentAlbums = (0, BuonduaBaseParser_1.getAlbums)($recent, this.hasEncodedUrls);
+        const recentAlbumsSection = createHomeSection({ id: 'recent', title: 'Recent', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
+        const recentAlbums = (0, AsianToLickParser_1.getAlbums)($recent);
         recentAlbumsSection.items = recentAlbums;
         sectionCallback(recentAlbumsSection);
         const requestForHot = createRequestObject({
-            url: `${this.baseUrl}/hot`,
+            url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=&index=&ver=22`,
             method: 'GET'
         });
         const responseForHot = await this.requestManager.schedule(requestForHot, 1);
         const $hot = this.cheerio.load(responseForHot.data);
-        const hotAlbumsSection = createHomeSection({ id: 'hot', title: 'Hot', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
-        const hotAlbums = (0, BuonduaBaseParser_1.getAlbums)($hot, this.hasEncodedUrls);
+        const hotAlbumsSection = createHomeSection({ id: 'hot', title: 'Top Rated', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
+        const hotAlbums = (0, AsianToLickParser_1.getAlbums)($hot);
         hotAlbumsSection.items = hotAlbums;
         sectionCallback(hotAlbumsSection);
     }
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
-        const albumNum = metadata?.page ?? 0;
+        const results = metadata?.page ?? 0;
         let param = '';
         switch (homepageSectionId) {
             case 'recent':
-                param = `/?start=${albumNum}`;
+                param = `/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=news&index=${results}&ver=43`;
                 break;
             case 'hot':
-                param = `/hot?start=${albumNum}`;
+                param = `/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=&index=${results}&ver=22`;
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
         }
         const request = createRequestObject({
-            url: `${this.baseUrl}`,
+            url: `${AsianToLickParser_1.DOMAIN}`,
             method: 'GET',
             param
         });
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data);
-        const albums = (0, BuonduaBaseParser_1.getAlbums)($, this.hasEncodedUrls);
-        metadata = !(0, BuonduaBaseParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
+        const albums = (0, AsianToLickParser_1.getAlbums)($);
+        metadata = !(0, AsianToLickParser_1.isLastPage)($) ? { page: results + 1 } : undefined;
         return createPagedResults({
             results: albums,
             metadata
         });
     }
     async getMangaDetails(mangaId) {
-        const data = await (0, BuonduaBaseParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls);
+        const data = await (0, AsianToLickParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
         return createManga({
             id: mangaId,
             titles: data.titles,
             image: data.image,
             status: paperback_extensions_common_1.MangaStatus.UNKNOWN,
             langFlag: paperback_extensions_common_1.LanguageCode.UNKNOWN,
-            author: this.sourceName,
-            artist: this.sourceName,
+            author: 'ATL',
+            artist: 'ATL',
             tags: data.tags,
             desc: data.desc
         });
     }
     async getChapters(mangaId) {
-        const data = await (0, BuonduaBaseParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls);
+        const data = await (0, AsianToLickParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
         const chapters = [];
         chapters.push(createChapter({
             id: data.id,
@@ -3684,97 +3712,147 @@ class Buondua extends paperback_extensions_common_1.Source {
             id: chapterId,
             mangaId: mangaId,
             longStrip: false,
-            pages: await (0, BuonduaBaseParser_1.getPages)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls)
+            pages: await (0, AsianToLickParser_1.getPages)(mangaId, this.requestManager, this.cheerio)
         });
     }
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query, metadata) {
-        const albumNum = metadata?.page ?? 0;
+        const results = metadata?.page ?? 0;
         let request;
         if (query.title) {
             request = createRequestObject({
-                url: `${this.baseUrl}/?search=${encodeURIComponent(query.title)}&start=${albumNum}`,
+                url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=${encodeURIComponent(query.title)}&page=&index=${results}&ver=74`,
                 method: 'GET'
             });
         }
         else {
-            request = createRequestObject({
-                url: this.hasEncodedTags ? `${this.baseUrl}/tag/${query.includedTags?.map((x) => encodeURIComponent(x.id.substring(4)))}?start=${albumNum})`
-                    : `${this.baseUrl}/${query.includedTags?.map(x => x.id)}?start=${albumNum})`,
-                method: 'GET'
-            });
+            let isCat = false;
+            let id;
+            const queryId = query.includedTags?.map((x) => encodeURIComponent(x.id)) ?? [];
+            const idSplit = queryId[0]?.split('-');
+            if (idSplit) {
+                isCat = idSplit[0]?.toString() === 'category';
+                id = idSplit[1]?.split('/')[0]?.toString();
+            }
+            if (isCat) {
+                request = createRequestObject({
+                    url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=${id}&tag=&search=&page=&index=${results}&ver=79)`,
+                    method: 'GET'
+                });
+            }
+            else {
+                request = createRequestObject({
+                    url: `${AsianToLickParser_1.DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${id}&search=&page=&index=${results}&ver=79)`,
+                    method: 'GET'
+                });
+            }
         }
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data);
-        const albums = (0, BuonduaBaseParser_1.getAlbums)($, this.hasEncodedUrls);
-        metadata = !(0, BuonduaBaseParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
+        const albums = (0, AsianToLickParser_1.getAlbums)($);
+        metadata = !(0, AsianToLickParser_1.isLastPage)($) ? { page: results + 1 } : undefined;
         return createPagedResults({
             results: albums,
             metadata
         });
     }
 }
-exports.default = Buondua;
+exports.AsianToLick = AsianToLick;
 
-},{"./BuonduaBaseParser":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
+},{"./AsianToLickParser":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.REGEX_EMOJIS = exports.REGEX_PATH_NAME = exports.REGEX_ASIAN = exports.DOMAIN = void 0;
 const entities = require("entities");
+exports.DOMAIN = 'https://asiantolick.com';
 exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
-function getAlbums($, hasEncodedUrls) {
-    const albums = [];
-    const albumCoverGroups = $('div.blog').toArray();
-    for (const albumCoverGroup of albumCoverGroups) {
-        const albumCovers = $('div.items-row', albumCoverGroup).toArray();
-        for (const albumCover of albumCovers) {
-            let image = $('img', albumCover).first().attr('src') ?? '';
-            const title = $('img', albumCover).first().attr('alt') ?? '';
-            const id = $('a', albumCover).attr('href')?.replace(/\/$/, '')?.split('/').pop() ?? '';
-            if (hasEncodedUrls) {
-                const imageSplit = image.split('com');
-                image = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
+exports.REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
+exports.REGEX_EMOJIS = /\p{Extended_Pictographic}/u;
+async function getTags(requestManager, cheerio) {
+    const request = createRequestObject({
+        url: `${exports.DOMAIN}/page/categories`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data);
+    const cats = [];
+    const tags = [];
+    const genres = $('a', 'div#wrap').toArray();
+    for (let i = 0; i < genres.length; i++) {
+        const id = exports.REGEX_PATH_NAME.exec($(genres[i]).attr('href') ?? '')?.toString().split(',')[1]?.split('/')[0] ?? '';
+        const label = $('img', $(genres[i])).attr('alt') ?? '';
+        const isCat = id.split('-')[0]?.toString() === 'category';
+        console.log('ID: ' + id);
+        console.log('LABEL: ' + label);
+        if (id) {
+            if (isCat) {
+                cats.push(createTag({ id, label }));
             }
-            if (!id || !title) {
-                continue;
+            else {
+                tags.push(createTag({ id, label }));
             }
-            albums.push(createMangaTile({
-                id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
-                image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
-                title: createIconText({ text: entities.decodeHTML(title) })
-            }));
         }
+    }
+    return [cats, tags];
+}
+exports.getTags = getTags;
+function getAlbums($) {
+    const albums = [];
+    const albumGroups = $('a.miniatura').toArray();
+    for (const album of albumGroups) {
+        const imgInfo = $('div.background_miniatura', album);
+        const image = $('div.background_miniatura img', imgInfo).attr('src') ?? '';
+        const title = $('div.background_miniatura img', imgInfo).attr('alt') ?? '';
+        const path = exports.REGEX_PATH_NAME.exec($(album).attr('href') ?? '')?.toString().split(',')[1] ?? '';
+        const pathSplit = path.split('/');
+        let id = '';
+        pathSplit.forEach(x => id += x.match(exports.REGEX_ASIAN) ? encodeURIComponent(x) + '/' : x + '/');
+        if (!id || !title) {
+            continue;
+        }
+        albums.push(createMangaTile({
+            id: id,
+            image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
+            title: createIconText({ text: entities.decodeHTML(title) })
+        }));
     }
     return albums;
 }
 exports.getAlbums = getAlbums;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrls) {
+async function getGalleryData(id, requestManager, cheerio) {
     const request = createRequestObject({
-        url: `${domain}/${id}`,
+        url: `${exports.DOMAIN}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data);
-    const title = $('div.article-header').first().text();
-    let image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-    let desc = $('small', 'div.article-info').last().text();
-    if (hasEncodedUrls) {
-        desc = $('div.article-info').first().text() + '\n' + $('div.article-info').last().text();
-        const imageSplit = image.split('com');
-        image = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
-    }
-    const tagHeader = $('div.article-tags').first();
-    const tags = $('a.tag', tagHeader).toArray();
+    const title = decodeURIComponent($('h1').first().text());
+    const image = $('img.miniaturaImg').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+    const descInfo = $('b').first().parent().parent().children().toArray();
+    descInfo.pop();
+    let desc = '';
+    descInfo.forEach(x => desc += $(x).text() + '\n');
+    // Need to detect and encode emoji from unicode
+    // descInfo.forEach(x => {
+    //     const text = $(x).text();
+    //     const split = text.split(' ');
+    //     if (split[0]?.match(REGEX_EMOJIS)) {
+    //         split[0] = (String.fromCodePoint(parseInt(split[0].slice(2,-1))));
+    //     }
+    //     desc = split.toString();
+    //     desc += $(x).text() + '\n';
+    // });
+    const tagHeader = $('div#categoria_tags_post').first();
+    const tags = $('a', tagHeader).toArray();
     const tagsToRender = [];
     for (const tag of tags) {
-        const label = $('span', tag).text();
-        const id = $(tag).attr('href');
+        const label = $(tag).text().trim();
+        const id = exports.REGEX_PATH_NAME.exec($(tag).attr('href') ?? '')?.toString().split(',')[1]?.split('/')[0] ?? '';
         if (!id || !label) {
             continue;
         }
-        hasEncodedUrls ? tagsToRender.push({ id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label })
-            : tagsToRender.push({ id: id, label: label });
+        tagsToRender.push({ id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label });
     }
     const tagSections = [createTagSection({
             id: '0',
@@ -3782,7 +3860,7 @@ async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrl
             tags: tagsToRender.map(x => createTag(x))
         })];
     return {
-        id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
+        id: id,
         titles: [title],
         image: image,
         tags: tagSections,
@@ -3790,85 +3868,23 @@ async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrl
     };
 }
 exports.getGalleryData = getGalleryData;
-async function getPages(id, requestManager, cheerio, domain, hasEncodedUrls) {
+async function getPages(id, requestManager, cheerio) {
     const request = createRequestObject({
-        url: `${domain}/${id}`,
+        url: `${exports.DOMAIN}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data);
     const pages = [];
-    const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
-    for (let i = 0; i < pageCount; i++) {
-        const request = createRequestObject({
-            url: `${domain}/${id}?page=${i + 1}`,
-            method: 'GET'
-        });
-        const data = await requestManager.schedule(request, 1);
-        const $ = cheerio.load(data.data);
-        const images = $('p', 'div.article-fulltext').toArray();
-        for (const img of images) {
-            let imageString = $('img', img).attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-            if (hasEncodedUrls) {
-                const imageSplit = imageString.split('com');
-                imageString = imageSplit[0] + 'com' + encodeURIComponent(imageSplit[1] ?? '').replaceAll('%2F', '/');
-            }
-            pages.push(imageString);
-        }
-    }
+    const pageItems = $('div.spotlight', 'article').toArray();
+    pageItems.forEach(x => pages.push($(x).attr('data-src') ?? 'https://i.imgur.com/GYUxEX8.png'));
     return pages;
 }
 exports.getPages = getPages;
 const isLastPage = ($) => {
-    const nav = $('nav.pagination', 'div.is-full.main-container');
-    const pageList = $('ul.pagination-list', nav);
-    const lastPageNum = parseInt($('li', pageList).last().text());
-    const currPageNum = parseInt($('a.is-current', pageList).text());
-    return (isNaN(lastPageNum) ||
-        isNaN(currPageNum) ||
-        lastPageNum === -1 ||
-        lastPageNum === currPageNum ?
-        true : false);
+    return $('body').text() === 'fim';
 };
 exports.isLastPage = isLastPage;
 
-},{"entities":10}],92:[function(require,module,exports){
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Xiutaku = exports.XiutakuInfo = void 0;
-const paperback_extensions_common_1 = require("paperback-extensions-common");
-const BuonduaBase_1 = require("../BuonduaBase");
-const BuonduaBase_2 = __importDefault(require("../BuonduaBase"));
-const DOMAIN = 'https://xiutaku.com';
-exports.XiutakuInfo = {
-    version: BuonduaBase_1.SOURCE_VERSION,
-    name: 'Xiutaku',
-    icon: 'icon.png',
-    author: 'WaltersAsh',
-    authorWebsite: 'https://github.com/WaltersAsh',
-    description: 'Extension to grab albums from Xiutaku',
-    contentRating: paperback_extensions_common_1.ContentRating.ADULT,
-    websiteBaseURL: DOMAIN,
-    sourceTags: [
-        {
-            text: '18+',
-            type: paperback_extensions_common_1.TagType.RED
-        }
-    ]
-};
-class Xiutaku extends BuonduaBase_2.default {
-    constructor() {
-        super(...arguments);
-        this.baseUrl = DOMAIN;
-        this.hasEncodedUrls = false;
-        this.sourceName = 'Xiutaku';
-        this.hasEncodedTags = false;
-    }
-}
-exports.Xiutaku = Xiutaku;
-
-},{"../BuonduaBase":90,"paperback-extensions-common":16}]},{},[92])(92)
+},{"entities":10}]},{},[90])(90)
 });

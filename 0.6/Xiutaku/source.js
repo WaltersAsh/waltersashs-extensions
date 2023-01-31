@@ -981,8 +981,11 @@ __exportStar(require("./RawData"), exports);
 },{"./Chapter":14,"./ChapterDetails":15,"./Constants":16,"./DynamicUI":32,"./HomeSection":33,"./Languages":34,"./Manga":35,"./MangaTile":36,"./MangaUpdate":37,"./PagedResults":38,"./RawData":39,"./RequestHeaders":40,"./RequestInterceptor":41,"./RequestManager":42,"./RequestObject":43,"./ResponseObject":44,"./SearchField":45,"./SearchRequest":46,"./SourceInfo":47,"./SourceManga":48,"./SourceStateManager":49,"./SourceTag":50,"./TagSection":51,"./TrackedManga":52,"./TrackedMangaChapterReadAction":53,"./TrackerActionQueue":54}],56:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.SOURCE_VERSION = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaBaseParser_1 = require("./BuonduaBaseParser");
+exports.SOURCE_VERSION = '1.1.0';
+const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15';
 class Buondua extends paperback_extensions_common_1.Source {
     constructor() {
         super(...arguments);
@@ -994,6 +997,7 @@ class Buondua extends paperback_extensions_common_1.Source {
                     request.headers = {
                         ...(request.headers ?? {}),
                         ...{
+                            'user-agent': USER_AGENT,
                             'referer': this.baseUrl
                         }
                     };
@@ -1030,6 +1034,7 @@ class Buondua extends paperback_extensions_common_1.Source {
         hotAlbumsSection.items = hotAlbums;
         sectionCallback(hotAlbumsSection);
     }
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
         const albumNum = metadata?.page ?? 0;
         let param = '';
@@ -1092,6 +1097,7 @@ class Buondua extends paperback_extensions_common_1.Source {
             pages: await (0, BuonduaBaseParser_1.getPages)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls)
         });
     }
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query, metadata) {
         const albumNum = metadata?.page ?? 0;
         let request;
@@ -1152,6 +1158,7 @@ function getAlbums($, hasEncodedUrls) {
     return albums;
 }
 exports.getAlbums = getAlbums;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrls) {
     const request = createRequestObject({
         url: `${domain}/${id}`,
@@ -1199,7 +1206,7 @@ async function getPages(id, requestManager, cheerio, domain, hasEncodedUrls) {
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
-    let $ = cheerio.load(data.data);
+    const $ = cheerio.load(data.data);
     const pages = [];
     const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
     for (let i = 0; i < pageCount; i++) {
@@ -1243,11 +1250,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Xiutaku = exports.XiutakuInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
-const BuonduaBase_1 = __importDefault(require("../BuonduaBase"));
+const BuonduaBase_1 = require("../BuonduaBase");
+const BuonduaBase_2 = __importDefault(require("../BuonduaBase"));
 const DOMAIN = 'https://xiutaku.com';
-const VERSION = '1.0.0';
 exports.XiutakuInfo = {
-    version: VERSION,
+    version: BuonduaBase_1.SOURCE_VERSION,
     name: 'Xiutaku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1259,14 +1266,10 @@ exports.XiutakuInfo = {
         {
             text: '18+',
             type: paperback_extensions_common_1.TagType.RED
-        },
-        {
-            text: VERSION,
-            type: paperback_extensions_common_1.TagType.GREEN
         }
     ]
 };
-class Xiutaku extends BuonduaBase_1.default {
+class Xiutaku extends BuonduaBase_2.default {
     constructor() {
         super(...arguments);
         this.baseUrl = DOMAIN;

@@ -3576,11 +3576,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Buondua = exports.BuonduaInfo = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
-const BuonduaBase_1 = __importDefault(require("../BuonduaBase"));
+const BuonduaBase_1 = require("../BuonduaBase");
+const BuonduaBase_2 = __importDefault(require("../BuonduaBase"));
 const DOMAIN = 'https://buondua.com';
-const VERSION = '1.0.4';
 exports.BuonduaInfo = {
-    version: VERSION,
+    version: BuonduaBase_1.SOURCE_VERSION,
     name: 'Buondua',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -3593,13 +3593,9 @@ exports.BuonduaInfo = {
             text: '18+',
             type: paperback_extensions_common_1.TagType.RED
         },
-        {
-            text: VERSION,
-            type: paperback_extensions_common_1.TagType.GREEN
-        }
     ]
 };
-class Buondua extends BuonduaBase_1.default {
+class Buondua extends BuonduaBase_2.default {
     constructor() {
         super(...arguments);
         this.baseUrl = DOMAIN;
@@ -3613,8 +3609,11 @@ exports.Buondua = Buondua;
 },{"../BuonduaBase":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.SOURCE_VERSION = void 0;
 const paperback_extensions_common_1 = require("paperback-extensions-common");
 const BuonduaBaseParser_1 = require("./BuonduaBaseParser");
+exports.SOURCE_VERSION = '1.1.0';
+const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15';
 class Buondua extends paperback_extensions_common_1.Source {
     constructor() {
         super(...arguments);
@@ -3626,6 +3625,7 @@ class Buondua extends paperback_extensions_common_1.Source {
                     request.headers = {
                         ...(request.headers ?? {}),
                         ...{
+                            'user-agent': USER_AGENT,
                             'referer': this.baseUrl
                         }
                     };
@@ -3662,6 +3662,7 @@ class Buondua extends paperback_extensions_common_1.Source {
         hotAlbumsSection.items = hotAlbums;
         sectionCallback(hotAlbumsSection);
     }
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
         const albumNum = metadata?.page ?? 0;
         let param = '';
@@ -3724,6 +3725,7 @@ class Buondua extends paperback_extensions_common_1.Source {
             pages: await (0, BuonduaBaseParser_1.getPages)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls)
         });
     }
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query, metadata) {
         const albumNum = metadata?.page ?? 0;
         let request;
@@ -3784,6 +3786,7 @@ function getAlbums($, hasEncodedUrls) {
     return albums;
 }
 exports.getAlbums = getAlbums;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrls) {
     const request = createRequestObject({
         url: `${domain}/${id}`,
@@ -3831,7 +3834,7 @@ async function getPages(id, requestManager, cheerio, domain, hasEncodedUrls) {
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
-    let $ = cheerio.load(data.data);
+    const $ = cheerio.load(data.data);
     const pages = [];
     const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
     for (let i = 0; i < pageCount; i++) {
