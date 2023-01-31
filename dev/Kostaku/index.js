@@ -3608,7 +3608,6 @@ class Buondua extends paperback_extensions_common_1.Source {
             method: 'GET'
         });
         const responseForRecent = await this.requestManager.schedule(requestForRecent, 1);
-        (0, BuonduaBaseParser_1.CloudFlareError)(responseForRecent.status);
         const $recent = this.cheerio.load(responseForRecent.data);
         const recentAlbumsSection = createHomeSection({ id: 'recent', title: 'Recently Uploaded', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
         const recentAlbums = (0, BuonduaBaseParser_1.getAlbums)($recent, this.hasEncodedUrls);
@@ -3619,7 +3618,6 @@ class Buondua extends paperback_extensions_common_1.Source {
             method: 'GET'
         });
         const responseForHot = await this.requestManager.schedule(requestForHot, 1);
-        (0, BuonduaBaseParser_1.CloudFlareError)(responseForHot.status);
         const $hot = this.cheerio.load(responseForHot.data);
         const hotAlbumsSection = createHomeSection({ id: 'hot', title: 'Hot', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
         const hotAlbums = (0, BuonduaBaseParser_1.getAlbums)($hot, this.hasEncodedUrls);
@@ -3646,7 +3644,6 @@ class Buondua extends paperback_extensions_common_1.Source {
             param
         });
         const response = await this.requestManager.schedule(request, 1);
-        (0, BuonduaBaseParser_1.CloudFlareError)(response.status);
         const $ = this.cheerio.load(response.data);
         const albums = (0, BuonduaBaseParser_1.getAlbums)($, this.hasEncodedUrls);
         metadata = !(0, BuonduaBaseParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
@@ -3657,7 +3654,6 @@ class Buondua extends paperback_extensions_common_1.Source {
     }
     async getMangaDetails(mangaId) {
         const data = await (0, BuonduaBaseParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls);
-        (0, BuonduaBaseParser_1.CloudFlareError)(data.status);
         return createManga({
             id: mangaId,
             titles: data.titles,
@@ -3672,7 +3668,6 @@ class Buondua extends paperback_extensions_common_1.Source {
     }
     async getChapters(mangaId) {
         const data = await (0, BuonduaBaseParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls);
-        (0, BuonduaBaseParser_1.CloudFlareError)(data.status);
         const chapters = [];
         chapters.push(createChapter({
             id: data.id,
@@ -3710,7 +3705,6 @@ class Buondua extends paperback_extensions_common_1.Source {
             });
         }
         const response = await this.requestManager.schedule(request, 1);
-        (0, BuonduaBaseParser_1.CloudFlareError)(response.status);
         const $ = this.cheerio.load(response.data);
         const albums = (0, BuonduaBaseParser_1.getAlbums)($, this.hasEncodedUrls);
         metadata = !(0, BuonduaBaseParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
@@ -3719,23 +3713,13 @@ class Buondua extends paperback_extensions_common_1.Source {
             metadata
         });
     }
-    getCloudflareBypassRequest() {
-        return createRequestObject({
-            url: this.baseUrl,
-            method: 'GET',
-            headers: {
-                'user-agent': USER_AGENT,
-                'referer': `${this.baseUrl}.`
-            }
-        });
-    }
 }
 exports.default = Buondua;
 
 },{"./BuonduaBaseParser":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CloudFlareError = exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = void 0;
 const entities = require("entities");
 exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 function getAlbums($, hasEncodedUrls) {
@@ -3771,7 +3755,6 @@ async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrl
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
-    CloudFlareError(data.status);
     const $ = cheerio.load(data.data);
     const title = $('div.article-header').first().text();
     let image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
@@ -3813,7 +3796,6 @@ async function getPages(id, requestManager, cheerio, domain, hasEncodedUrls) {
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
-    CloudFlareError(data.status);
     const $ = cheerio.load(data.data);
     const pages = [];
     const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
@@ -3823,7 +3805,6 @@ async function getPages(id, requestManager, cheerio, domain, hasEncodedUrls) {
             method: 'GET'
         });
         const data = await requestManager.schedule(request, 1);
-        CloudFlareError(data.status);
         const $ = cheerio.load(data.data);
         const images = $('p', 'div.article-fulltext').toArray();
         for (const img of images) {
@@ -3850,12 +3831,6 @@ const isLastPage = ($) => {
         true : false);
 };
 exports.isLastPage = isLastPage;
-function CloudFlareError(status) {
-    if (status == 403) {
-        throw new Error('CLOUDFLARE BYPASS ERROR:\nPlease go to Settings > Sources > <The name of this source> and press Cloudflare Bypass');
-    }
-}
-exports.CloudFlareError = CloudFlareError;
 
 },{"entities":10}],92:[function(require,module,exports){
 "use strict";
