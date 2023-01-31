@@ -4,12 +4,14 @@ import {
     ContentRating,
 } from 'paperback-extensions-common';
 
+import { SOURCE_VERSION } from '../BuonduaBase';
+
 import BuonduaBase from '../BuonduaBase';
 
 const DOMAIN = 'https://kostaku.art';
 
 export const KostakuInfo: SourceInfo = {
-    version: '1.0.3',
+    version: SOURCE_VERSION,
     name: 'Kostaku',
     icon: 'icon.png',
     author: 'WaltersAsh',

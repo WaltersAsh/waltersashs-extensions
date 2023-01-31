@@ -4,12 +4,14 @@ import {
     ContentRating,
 } from 'paperback-extensions-common';
 
+import { SOURCE_VERSION } from '../BuonduaBase';
+
 import BuonduaBase from '../BuonduaBase';
 
 const DOMAIN = 'https://xiutaku.com';
 
 export const XiutakuInfo: SourceInfo = {
-    version: '1.0.0',
+    version: SOURCE_VERSION,
     name: 'Xiutaku',
     icon: 'icon.png',
     author: 'WaltersAsh',

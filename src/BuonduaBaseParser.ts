@@ -47,6 +47,8 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
+    CloudFlareError(data.status);
+
     const $ = cheerio.load(data.data);
     
     const title = $('div.article-header').first().text();
@@ -93,6 +95,8 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
+    CloudFlareError(data.status);
+
     const $ = cheerio.load(data.data);
     
     const pages: string[] = [];
@@ -104,6 +108,8 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
             method: 'GET'
         });
         const data = await requestManager.schedule(request, 1);
+        CloudFlareError(data.status);
+
         const $ = cheerio.load(data.data);
 
         const images = $('p', 'div.article-fulltext').toArray();
@@ -134,3 +140,9 @@ export const isLastPage = ($: CheerioStatic): boolean => {
             lastPageNum === currPageNum ? 
         true : false);
 };
+
+export function CloudFlareError(status: unknown): void {
+    if (status == 403) {
+        throw new Error('CLOUDFLARE BYPASS ERROR:\nPlease go to Settings > Sources > <The name of this source> and press Cloudflare Bypass');
+    }
+}
