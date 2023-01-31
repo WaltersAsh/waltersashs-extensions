@@ -4,13 +4,14 @@ import {
     ContentRating,
 } from 'paperback-extensions-common';
 
+import { SOURCE_VERSION } from '../BuonduaBase';
+
 import BuonduaBase from '../BuonduaBase';
 
 const DOMAIN = 'https://buondua.com';
-const VERSION = '1.0.4';
 
 export const BuonduaInfo: SourceInfo = {
-    version: VERSION,
+    version: SOURCE_VERSION,
     name: 'Buondua',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -23,12 +24,8 @@ export const BuonduaInfo: SourceInfo = {
             text: '18+',
             type: TagType.RED
         },
-        {
-            text: VERSION,
-            type: TagType.GREEN
-        }
     ]
-}
+};
 
 export class Buondua extends BuonduaBase {
     baseUrl = DOMAIN;

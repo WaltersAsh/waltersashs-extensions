@@ -31,10 +31,14 @@ module.exports = {
         ],
         'semi': [
             'error',
-            'never'
+            'always'
+        ],
+        'max-len': [
+            'error',
+            160
         ],
         'prefer-arrow-callback': 'error',
         'modules-newline/import-declaration-newline': 'error',
         'modules-newline/export-declaration-newline': 'error'
     }
-}
+};
