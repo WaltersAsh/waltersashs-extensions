@@ -15,7 +15,6 @@ import {
 } from 'paperback-extensions-common';
 
 import { 
-    CloudFlareError,
     getAlbums,
     getGalleryData,
     getPages,
@@ -62,7 +61,6 @@ export default abstract class Buondua extends Source {
             method: 'GET'
         });
         const responseForRecent = await this.requestManager.schedule(requestForRecent, 1);
-        CloudFlareError(responseForRecent.status);
         const $recent = this.cheerio.load(responseForRecent.data);
         const recentAlbumsSection = createHomeSection({id: 'recent', title: 'Recently Uploaded', view_more: true, type: HomeSectionType.singleRowNormal});
         const recentAlbums = getAlbums($recent, this.hasEncodedUrls);
@@ -74,7 +72,6 @@ export default abstract class Buondua extends Source {
             method: 'GET'
         });
         const responseForHot = await this.requestManager.schedule(requestForHot, 1);
-        CloudFlareError(responseForHot.status);
         const $hot = this.cheerio.load(responseForHot.data);
         const hotAlbumsSection = createHomeSection({id: 'hot', title: 'Hot', view_more: true, type: HomeSectionType.singleRowNormal});
         const hotAlbums = getAlbums($hot, this.hasEncodedUrls);
@@ -104,7 +101,6 @@ export default abstract class Buondua extends Source {
             param
         });
         const response = await this.requestManager.schedule(request, 1);
-        CloudFlareError(response.status);
         const $ = this.cheerio.load(response.data);
         
         const albums = getAlbums($, this.hasEncodedUrls);
@@ -117,7 +113,6 @@ export default abstract class Buondua extends Source {
 
     override async getMangaDetails(mangaId: string): Promise<Manga> {
         const data = await getGalleryData(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls);
-        CloudFlareError(data.status);
 
         return createManga({
             id: mangaId,
@@ -134,7 +129,6 @@ export default abstract class Buondua extends Source {
 
     override async getChapters(mangaId: string): Promise<Chapter[]> {
         const data = await getGalleryData(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls);
-        CloudFlareError(data.status);
 
         const chapters: Chapter[] = [];
         chapters.push(createChapter({
@@ -176,7 +170,6 @@ export default abstract class Buondua extends Source {
             });
         }
         const response = await this.requestManager.schedule(request, 1);
-        CloudFlareError(response.status);
         const $ = this.cheerio.load(response.data);
 
         const albums = getAlbums($, this.hasEncodedUrls);
@@ -185,17 +178,6 @@ export default abstract class Buondua extends Source {
         return createPagedResults({
             results: albums,
             metadata
-        });
-    }
-
-    override getCloudflareBypassRequest(): Request {
-        return createRequestObject({
-            url: this.baseUrl,
-            method: 'GET',
-            headers: {
-                'user-agent': USER_AGENT,
-                'referer': `${this.baseUrl}.`
-            }
         });
     }
 }
