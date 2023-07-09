@@ -1,1948 +1,497 @@
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.Sources = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-'use strict'
-
-exports.byteLength = byteLength
-exports.toByteArray = toByteArray
-exports.fromByteArray = fromByteArray
-
-var lookup = []
-var revLookup = []
-var Arr = typeof Uint8Array !== 'undefined' ? Uint8Array : Array
-
-var code = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-for (var i = 0, len = code.length; i < len; ++i) {
-  lookup[i] = code[i]
-  revLookup[code.charCodeAt(i)] = i
-}
-
-// Support decoding URL-safe base64 strings, as Node.js does.
-// See: https://en.wikipedia.org/wiki/Base64#URL_applications
-revLookup['-'.charCodeAt(0)] = 62
-revLookup['_'.charCodeAt(0)] = 63
-
-function getLens (b64) {
-  var len = b64.length
-
-  if (len % 4 > 0) {
-    throw new Error('Invalid string. Length must be a multiple of 4')
-  }
-
-  // Trim off extra bytes after placeholder bytes are found
-  // See: https://github.com/beatgammit/base64-js/issues/42
-  var validLen = b64.indexOf('=')
-  if (validLen === -1) validLen = len
-
-  var placeHoldersLen = validLen === len
-    ? 0
-    : 4 - (validLen % 4)
-
-  return [validLen, placeHoldersLen]
-}
-
-// base64 is 4/3 + up to two characters of the original data
-function byteLength (b64) {
-  var lens = getLens(b64)
-  var validLen = lens[0]
-  var placeHoldersLen = lens[1]
-  return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen
-}
-
-function _byteLength (b64, validLen, placeHoldersLen) {
-  return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen
-}
-
-function toByteArray (b64) {
-  var tmp
-  var lens = getLens(b64)
-  var validLen = lens[0]
-  var placeHoldersLen = lens[1]
-
-  var arr = new Arr(_byteLength(b64, validLen, placeHoldersLen))
-
-  var curByte = 0
-
-  // if there are placeholders, only get up to the last complete 4 chars
-  var len = placeHoldersLen > 0
-    ? validLen - 4
-    : validLen
-
-  var i
-  for (i = 0; i < len; i += 4) {
-    tmp =
-      (revLookup[b64.charCodeAt(i)] << 18) |
-      (revLookup[b64.charCodeAt(i + 1)] << 12) |
-      (revLookup[b64.charCodeAt(i + 2)] << 6) |
-      revLookup[b64.charCodeAt(i + 3)]
-    arr[curByte++] = (tmp >> 16) & 0xFF
-    arr[curByte++] = (tmp >> 8) & 0xFF
-    arr[curByte++] = tmp & 0xFF
-  }
-
-  if (placeHoldersLen === 2) {
-    tmp =
-      (revLookup[b64.charCodeAt(i)] << 2) |
-      (revLookup[b64.charCodeAt(i + 1)] >> 4)
-    arr[curByte++] = tmp & 0xFF
-  }
-
-  if (placeHoldersLen === 1) {
-    tmp =
-      (revLookup[b64.charCodeAt(i)] << 10) |
-      (revLookup[b64.charCodeAt(i + 1)] << 4) |
-      (revLookup[b64.charCodeAt(i + 2)] >> 2)
-    arr[curByte++] = (tmp >> 8) & 0xFF
-    arr[curByte++] = tmp & 0xFF
-  }
-
-  return arr
-}
-
-function tripletToBase64 (num) {
-  return lookup[num >> 18 & 0x3F] +
-    lookup[num >> 12 & 0x3F] +
-    lookup[num >> 6 & 0x3F] +
-    lookup[num & 0x3F]
-}
-
-function encodeChunk (uint8, start, end) {
-  var tmp
-  var output = []
-  for (var i = start; i < end; i += 3) {
-    tmp =
-      ((uint8[i] << 16) & 0xFF0000) +
-      ((uint8[i + 1] << 8) & 0xFF00) +
-      (uint8[i + 2] & 0xFF)
-    output.push(tripletToBase64(tmp))
-  }
-  return output.join('')
-}
-
-function fromByteArray (uint8) {
-  var tmp
-  var len = uint8.length
-  var extraBytes = len % 3 // if we have 1 byte left, pad 2 bytes
-  var parts = []
-  var maxChunkLength = 16383 // must be multiple of 3
-
-  // go through the array every three bytes, we'll deal with trailing stuff later
-  for (var i = 0, len2 = len - extraBytes; i < len2; i += maxChunkLength) {
-    parts.push(encodeChunk(uint8, i, (i + maxChunkLength) > len2 ? len2 : (i + maxChunkLength)))
-  }
-
-  // pad the end with zeros, but make sure to not forget the extra bytes
-  if (extraBytes === 1) {
-    tmp = uint8[len - 1]
-    parts.push(
-      lookup[tmp >> 2] +
-      lookup[(tmp << 4) & 0x3F] +
-      '=='
-    )
-  } else if (extraBytes === 2) {
-    tmp = (uint8[len - 2] << 8) + uint8[len - 1]
-    parts.push(
-      lookup[tmp >> 10] +
-      lookup[(tmp >> 4) & 0x3F] +
-      lookup[(tmp << 2) & 0x3F] +
-      '='
-    )
-  }
-
-  return parts.join('')
-}
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.BadgeColor = void 0;
+var BadgeColor;
+(function (BadgeColor) {
+    BadgeColor["BLUE"] = "default";
+    BadgeColor["GREEN"] = "success";
+    BadgeColor["GREY"] = "info";
+    BadgeColor["YELLOW"] = "warning";
+    BadgeColor["RED"] = "danger";
+})(BadgeColor = exports.BadgeColor || (exports.BadgeColor = {}));
 
 },{}],2:[function(require,module,exports){
-(function (Buffer){(function (){
-/*!
- * The buffer module from node.js, for the browser.
- *
- * @author   Feross Aboukhadijeh <https://feross.org>
- * @license  MIT
- */
-/* eslint-disable no-proto */
-
-'use strict'
-
-var base64 = require('base64-js')
-var ieee754 = require('ieee754')
-
-exports.Buffer = Buffer
-exports.SlowBuffer = SlowBuffer
-exports.INSPECT_MAX_BYTES = 50
-
-var K_MAX_LENGTH = 0x7fffffff
-exports.kMaxLength = K_MAX_LENGTH
-
-/**
- * If `Buffer.TYPED_ARRAY_SUPPORT`:
- *   === true    Use Uint8Array implementation (fastest)
- *   === false   Print warning and recommend using `buffer` v4.x which has an Object
- *               implementation (most compatible, even IE6)
- *
- * Browsers that support typed arrays are IE 10+, Firefox 4+, Chrome 7+, Safari 5.1+,
- * Opera 11.6+, iOS 4.2+.
- *
- * We report that the browser does not support typed arrays if the are not subclassable
- * using __proto__. Firefox 4-29 lacks support for adding new properties to `Uint8Array`
- * (See: https://bugzilla.mozilla.org/show_bug.cgi?id=695438). IE 10 lacks support
- * for __proto__ and has a buggy typed array implementation.
- */
-Buffer.TYPED_ARRAY_SUPPORT = typedArraySupport()
-
-if (!Buffer.TYPED_ARRAY_SUPPORT && typeof console !== 'undefined' &&
-    typeof console.error === 'function') {
-  console.error(
-    'This browser lacks typed array (Uint8Array) support which is required by ' +
-    '`buffer` v5.x. Use `buffer` v4.x if you require old browser support.'
-  )
-}
-
-function typedArraySupport () {
-  // Can typed array instances can be augmented?
-  try {
-    var arr = new Uint8Array(1)
-    arr.__proto__ = { __proto__: Uint8Array.prototype, foo: function () { return 42 } }
-    return arr.foo() === 42
-  } catch (e) {
-    return false
-  }
-}
-
-Object.defineProperty(Buffer.prototype, 'parent', {
-  enumerable: true,
-  get: function () {
-    if (!Buffer.isBuffer(this)) return undefined
-    return this.buffer
-  }
-})
-
-Object.defineProperty(Buffer.prototype, 'offset', {
-  enumerable: true,
-  get: function () {
-    if (!Buffer.isBuffer(this)) return undefined
-    return this.byteOffset
-  }
-})
-
-function createBuffer (length) {
-  if (length > K_MAX_LENGTH) {
-    throw new RangeError('The value "' + length + '" is invalid for option "size"')
-  }
-  // Return an augmented `Uint8Array` instance
-  var buf = new Uint8Array(length)
-  buf.__proto__ = Buffer.prototype
-  return buf
-}
-
-/**
- * The Buffer constructor returns instances of `Uint8Array` that have their
- * prototype changed to `Buffer.prototype`. Furthermore, `Buffer` is a subclass of
- * `Uint8Array`, so the returned instances will have all the node `Buffer` methods
- * and the `Uint8Array` methods. Square bracket notation works as expected -- it
- * returns a single octet.
- *
- * The `Uint8Array` prototype remains unmodified.
- */
-
-function Buffer (arg, encodingOrOffset, length) {
-  // Common case.
-  if (typeof arg === 'number') {
-    if (typeof encodingOrOffset === 'string') {
-      throw new TypeError(
-        'The "string" argument must be of type string. Received type number'
-      )
-    }
-    return allocUnsafe(arg)
-  }
-  return from(arg, encodingOrOffset, length)
-}
-
-// Fix subarray() in ES2016. See: https://github.com/feross/buffer/pull/97
-if (typeof Symbol !== 'undefined' && Symbol.species != null &&
-    Buffer[Symbol.species] === Buffer) {
-  Object.defineProperty(Buffer, Symbol.species, {
-    value: null,
-    configurable: true,
-    enumerable: false,
-    writable: false
-  })
-}
-
-Buffer.poolSize = 8192 // not used by this implementation
-
-function from (value, encodingOrOffset, length) {
-  if (typeof value === 'string') {
-    return fromString(value, encodingOrOffset)
-  }
-
-  if (ArrayBuffer.isView(value)) {
-    return fromArrayLike(value)
-  }
-
-  if (value == null) {
-    throw TypeError(
-      'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
-      'or Array-like Object. Received type ' + (typeof value)
-    )
-  }
-
-  if (isInstance(value, ArrayBuffer) ||
-      (value && isInstance(value.buffer, ArrayBuffer))) {
-    return fromArrayBuffer(value, encodingOrOffset, length)
-  }
-
-  if (typeof value === 'number') {
-    throw new TypeError(
-      'The "value" argument must not be of type number. Received type number'
-    )
-  }
-
-  var valueOf = value.valueOf && value.valueOf()
-  if (valueOf != null && valueOf !== value) {
-    return Buffer.from(valueOf, encodingOrOffset, length)
-  }
-
-  var b = fromObject(value)
-  if (b) return b
-
-  if (typeof Symbol !== 'undefined' && Symbol.toPrimitive != null &&
-      typeof value[Symbol.toPrimitive] === 'function') {
-    return Buffer.from(
-      value[Symbol.toPrimitive]('string'), encodingOrOffset, length
-    )
-  }
-
-  throw new TypeError(
-    'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
-    'or Array-like Object. Received type ' + (typeof value)
-  )
-}
-
-/**
- * Functionally equivalent to Buffer(arg, encoding) but throws a TypeError
- * if value is a number.
- * Buffer.from(str[, encoding])
- * Buffer.from(array)
- * Buffer.from(buffer)
- * Buffer.from(arrayBuffer[, byteOffset[, length]])
- **/
-Buffer.from = function (value, encodingOrOffset, length) {
-  return from(value, encodingOrOffset, length)
-}
-
-// Note: Change prototype *after* Buffer.from is defined to workaround Chrome bug:
-// https://github.com/feross/buffer/pull/148
-Buffer.prototype.__proto__ = Uint8Array.prototype
-Buffer.__proto__ = Uint8Array
-
-function assertSize (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('"size" argument must be of type number')
-  } else if (size < 0) {
-    throw new RangeError('The value "' + size + '" is invalid for option "size"')
-  }
-}
-
-function alloc (size, fill, encoding) {
-  assertSize(size)
-  if (size <= 0) {
-    return createBuffer(size)
-  }
-  if (fill !== undefined) {
-    // Only pay attention to encoding if it's a string. This
-    // prevents accidentally sending in a number that would
-    // be interpretted as a start offset.
-    return typeof encoding === 'string'
-      ? createBuffer(size).fill(fill, encoding)
-      : createBuffer(size).fill(fill)
-  }
-  return createBuffer(size)
-}
-
-/**
- * Creates a new filled Buffer instance.
- * alloc(size[, fill[, encoding]])
- **/
-Buffer.alloc = function (size, fill, encoding) {
-  return alloc(size, fill, encoding)
-}
-
-function allocUnsafe (size) {
-  assertSize(size)
-  return createBuffer(size < 0 ? 0 : checked(size) | 0)
-}
-
-/**
- * Equivalent to Buffer(num), by default creates a non-zero-filled Buffer instance.
- * */
-Buffer.allocUnsafe = function (size) {
-  return allocUnsafe(size)
-}
-/**
- * Equivalent to SlowBuffer(num), by default creates a non-zero-filled Buffer instance.
- */
-Buffer.allocUnsafeSlow = function (size) {
-  return allocUnsafe(size)
-}
-
-function fromString (string, encoding) {
-  if (typeof encoding !== 'string' || encoding === '') {
-    encoding = 'utf8'
-  }
-
-  if (!Buffer.isEncoding(encoding)) {
-    throw new TypeError('Unknown encoding: ' + encoding)
-  }
-
-  var length = byteLength(string, encoding) | 0
-  var buf = createBuffer(length)
-
-  var actual = buf.write(string, encoding)
-
-  if (actual !== length) {
-    // Writing a hex string, for example, that contains invalid characters will
-    // cause everything after the first invalid character to be ignored. (e.g.
-    // 'abxxcd' will be treated as 'ab')
-    buf = buf.slice(0, actual)
-  }
-
-  return buf
-}
-
-function fromArrayLike (array) {
-  var length = array.length < 0 ? 0 : checked(array.length) | 0
-  var buf = createBuffer(length)
-  for (var i = 0; i < length; i += 1) {
-    buf[i] = array[i] & 255
-  }
-  return buf
-}
-
-function fromArrayBuffer (array, byteOffset, length) {
-  if (byteOffset < 0 || array.byteLength < byteOffset) {
-    throw new RangeError('"offset" is outside of buffer bounds')
-  }
-
-  if (array.byteLength < byteOffset + (length || 0)) {
-    throw new RangeError('"length" is outside of buffer bounds')
-  }
-
-  var buf
-  if (byteOffset === undefined && length === undefined) {
-    buf = new Uint8Array(array)
-  } else if (length === undefined) {
-    buf = new Uint8Array(array, byteOffset)
-  } else {
-    buf = new Uint8Array(array, byteOffset, length)
-  }
-
-  // Return an augmented `Uint8Array` instance
-  buf.__proto__ = Buffer.prototype
-  return buf
-}
-
-function fromObject (obj) {
-  if (Buffer.isBuffer(obj)) {
-    var len = checked(obj.length) | 0
-    var buf = createBuffer(len)
-
-    if (buf.length === 0) {
-      return buf
-    }
-
-    obj.copy(buf, 0, 0, len)
-    return buf
-  }
-
-  if (obj.length !== undefined) {
-    if (typeof obj.length !== 'number' || numberIsNaN(obj.length)) {
-      return createBuffer(0)
-    }
-    return fromArrayLike(obj)
-  }
-
-  if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
-    return fromArrayLike(obj.data)
-  }
-}
-
-function checked (length) {
-  // Note: cannot use `length < K_MAX_LENGTH` here because that fails when
-  // length is NaN (which is otherwise coerced to zero.)
-  if (length >= K_MAX_LENGTH) {
-    throw new RangeError('Attempt to allocate Buffer larger than maximum ' +
-                         'size: 0x' + K_MAX_LENGTH.toString(16) + ' bytes')
-  }
-  return length | 0
-}
-
-function SlowBuffer (length) {
-  if (+length != length) { // eslint-disable-line eqeqeq
-    length = 0
-  }
-  return Buffer.alloc(+length)
-}
-
-Buffer.isBuffer = function isBuffer (b) {
-  return b != null && b._isBuffer === true &&
-    b !== Buffer.prototype // so Buffer.isBuffer(Buffer.prototype) will be false
-}
-
-Buffer.compare = function compare (a, b) {
-  if (isInstance(a, Uint8Array)) a = Buffer.from(a, a.offset, a.byteLength)
-  if (isInstance(b, Uint8Array)) b = Buffer.from(b, b.offset, b.byteLength)
-  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
-    throw new TypeError(
-      'The "buf1", "buf2" arguments must be one of type Buffer or Uint8Array'
-    )
-  }
-
-  if (a === b) return 0
-
-  var x = a.length
-  var y = b.length
-
-  for (var i = 0, len = Math.min(x, y); i < len; ++i) {
-    if (a[i] !== b[i]) {
-      x = a[i]
-      y = b[i]
-      break
-    }
-  }
-
-  if (x < y) return -1
-  if (y < x) return 1
-  return 0
-}
-
-Buffer.isEncoding = function isEncoding (encoding) {
-  switch (String(encoding).toLowerCase()) {
-    case 'hex':
-    case 'utf8':
-    case 'utf-8':
-    case 'ascii':
-    case 'latin1':
-    case 'binary':
-    case 'base64':
-    case 'ucs2':
-    case 'ucs-2':
-    case 'utf16le':
-    case 'utf-16le':
-      return true
-    default:
-      return false
-  }
-}
-
-Buffer.concat = function concat (list, length) {
-  if (!Array.isArray(list)) {
-    throw new TypeError('"list" argument must be an Array of Buffers')
-  }
-
-  if (list.length === 0) {
-    return Buffer.alloc(0)
-  }
-
-  var i
-  if (length === undefined) {
-    length = 0
-    for (i = 0; i < list.length; ++i) {
-      length += list[i].length
-    }
-  }
-
-  var buffer = Buffer.allocUnsafe(length)
-  var pos = 0
-  for (i = 0; i < list.length; ++i) {
-    var buf = list[i]
-    if (isInstance(buf, Uint8Array)) {
-      buf = Buffer.from(buf)
-    }
-    if (!Buffer.isBuffer(buf)) {
-      throw new TypeError('"list" argument must be an Array of Buffers')
-    }
-    buf.copy(buffer, pos)
-    pos += buf.length
-  }
-  return buffer
-}
-
-function byteLength (string, encoding) {
-  if (Buffer.isBuffer(string)) {
-    return string.length
-  }
-  if (ArrayBuffer.isView(string) || isInstance(string, ArrayBuffer)) {
-    return string.byteLength
-  }
-  if (typeof string !== 'string') {
-    throw new TypeError(
-      'The "string" argument must be one of type string, Buffer, or ArrayBuffer. ' +
-      'Received type ' + typeof string
-    )
-  }
-
-  var len = string.length
-  var mustMatch = (arguments.length > 2 && arguments[2] === true)
-  if (!mustMatch && len === 0) return 0
-
-  // Use a for loop to avoid recursion
-  var loweredCase = false
-  for (;;) {
-    switch (encoding) {
-      case 'ascii':
-      case 'latin1':
-      case 'binary':
-        return len
-      case 'utf8':
-      case 'utf-8':
-        return utf8ToBytes(string).length
-      case 'ucs2':
-      case 'ucs-2':
-      case 'utf16le':
-      case 'utf-16le':
-        return len * 2
-      case 'hex':
-        return len >>> 1
-      case 'base64':
-        return base64ToBytes(string).length
-      default:
-        if (loweredCase) {
-          return mustMatch ? -1 : utf8ToBytes(string).length // assume utf8
-        }
-        encoding = ('' + encoding).toLowerCase()
-        loweredCase = true
-    }
-  }
-}
-Buffer.byteLength = byteLength
-
-function slowToString (encoding, start, end) {
-  var loweredCase = false
-
-  // No need to verify that "this.length <= MAX_UINT32" since it's a read-only
-  // property of a typed array.
-
-  // This behaves neither like String nor Uint8Array in that we set start/end
-  // to their upper/lower bounds if the value passed is out of range.
-  // undefined is handled specially as per ECMA-262 6th Edition,
-  // Section 13.3.3.7 Runtime Semantics: KeyedBindingInitialization.
-  if (start === undefined || start < 0) {
-    start = 0
-  }
-  // Return early if start > this.length. Done here to prevent potential uint32
-  // coercion fail below.
-  if (start > this.length) {
-    return ''
-  }
-
-  if (end === undefined || end > this.length) {
-    end = this.length
-  }
-
-  if (end <= 0) {
-    return ''
-  }
-
-  // Force coersion to uint32. This will also coerce falsey/NaN values to 0.
-  end >>>= 0
-  start >>>= 0
-
-  if (end <= start) {
-    return ''
-  }
-
-  if (!encoding) encoding = 'utf8'
-
-  while (true) {
-    switch (encoding) {
-      case 'hex':
-        return hexSlice(this, start, end)
-
-      case 'utf8':
-      case 'utf-8':
-        return utf8Slice(this, start, end)
-
-      case 'ascii':
-        return asciiSlice(this, start, end)
-
-      case 'latin1':
-      case 'binary':
-        return latin1Slice(this, start, end)
-
-      case 'base64':
-        return base64Slice(this, start, end)
-
-      case 'ucs2':
-      case 'ucs-2':
-      case 'utf16le':
-      case 'utf-16le':
-        return utf16leSlice(this, start, end)
-
-      default:
-        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
-        encoding = (encoding + '').toLowerCase()
-        loweredCase = true
-    }
-  }
-}
-
-// This property is used by `Buffer.isBuffer` (and the `is-buffer` npm package)
-// to detect a Buffer instance. It's not possible to use `instanceof Buffer`
-// reliably in a browserify context because there could be multiple different
-// copies of the 'buffer' package in use. This method works even for Buffer
-// instances that were created from another copy of the `buffer` package.
-// See: https://github.com/feross/buffer/issues/154
-Buffer.prototype._isBuffer = true
-
-function swap (b, n, m) {
-  var i = b[n]
-  b[n] = b[m]
-  b[m] = i
-}
-
-Buffer.prototype.swap16 = function swap16 () {
-  var len = this.length
-  if (len % 2 !== 0) {
-    throw new RangeError('Buffer size must be a multiple of 16-bits')
-  }
-  for (var i = 0; i < len; i += 2) {
-    swap(this, i, i + 1)
-  }
-  return this
-}
-
-Buffer.prototype.swap32 = function swap32 () {
-  var len = this.length
-  if (len % 4 !== 0) {
-    throw new RangeError('Buffer size must be a multiple of 32-bits')
-  }
-  for (var i = 0; i < len; i += 4) {
-    swap(this, i, i + 3)
-    swap(this, i + 1, i + 2)
-  }
-  return this
-}
-
-Buffer.prototype.swap64 = function swap64 () {
-  var len = this.length
-  if (len % 8 !== 0) {
-    throw new RangeError('Buffer size must be a multiple of 64-bits')
-  }
-  for (var i = 0; i < len; i += 8) {
-    swap(this, i, i + 7)
-    swap(this, i + 1, i + 6)
-    swap(this, i + 2, i + 5)
-    swap(this, i + 3, i + 4)
-  }
-  return this
-}
-
-Buffer.prototype.toString = function toString () {
-  var length = this.length
-  if (length === 0) return ''
-  if (arguments.length === 0) return utf8Slice(this, 0, length)
-  return slowToString.apply(this, arguments)
-}
-
-Buffer.prototype.toLocaleString = Buffer.prototype.toString
-
-Buffer.prototype.equals = function equals (b) {
-  if (!Buffer.isBuffer(b)) throw new TypeError('Argument must be a Buffer')
-  if (this === b) return true
-  return Buffer.compare(this, b) === 0
-}
-
-Buffer.prototype.inspect = function inspect () {
-  var str = ''
-  var max = exports.INSPECT_MAX_BYTES
-  str = this.toString('hex', 0, max).replace(/(.{2})/g, '$1 ').trim()
-  if (this.length > max) str += ' ... '
-  return '<Buffer ' + str + '>'
-}
-
-Buffer.prototype.compare = function compare (target, start, end, thisStart, thisEnd) {
-  if (isInstance(target, Uint8Array)) {
-    target = Buffer.from(target, target.offset, target.byteLength)
-  }
-  if (!Buffer.isBuffer(target)) {
-    throw new TypeError(
-      'The "target" argument must be one of type Buffer or Uint8Array. ' +
-      'Received type ' + (typeof target)
-    )
-  }
-
-  if (start === undefined) {
-    start = 0
-  }
-  if (end === undefined) {
-    end = target ? target.length : 0
-  }
-  if (thisStart === undefined) {
-    thisStart = 0
-  }
-  if (thisEnd === undefined) {
-    thisEnd = this.length
-  }
-
-  if (start < 0 || end > target.length || thisStart < 0 || thisEnd > this.length) {
-    throw new RangeError('out of range index')
-  }
-
-  if (thisStart >= thisEnd && start >= end) {
-    return 0
-  }
-  if (thisStart >= thisEnd) {
-    return -1
-  }
-  if (start >= end) {
-    return 1
-  }
-
-  start >>>= 0
-  end >>>= 0
-  thisStart >>>= 0
-  thisEnd >>>= 0
-
-  if (this === target) return 0
-
-  var x = thisEnd - thisStart
-  var y = end - start
-  var len = Math.min(x, y)
-
-  var thisCopy = this.slice(thisStart, thisEnd)
-  var targetCopy = target.slice(start, end)
-
-  for (var i = 0; i < len; ++i) {
-    if (thisCopy[i] !== targetCopy[i]) {
-      x = thisCopy[i]
-      y = targetCopy[i]
-      break
-    }
-  }
-
-  if (x < y) return -1
-  if (y < x) return 1
-  return 0
-}
-
-// Finds either the first index of `val` in `buffer` at offset >= `byteOffset`,
-// OR the last index of `val` in `buffer` at offset <= `byteOffset`.
-//
-// Arguments:
-// - buffer - a Buffer to search
-// - val - a string, Buffer, or number
-// - byteOffset - an index into `buffer`; will be clamped to an int32
-// - encoding - an optional encoding, relevant is val is a string
-// - dir - true for indexOf, false for lastIndexOf
-function bidirectionalIndexOf (buffer, val, byteOffset, encoding, dir) {
-  // Empty buffer means no match
-  if (buffer.length === 0) return -1
-
-  // Normalize byteOffset
-  if (typeof byteOffset === 'string') {
-    encoding = byteOffset
-    byteOffset = 0
-  } else if (byteOffset > 0x7fffffff) {
-    byteOffset = 0x7fffffff
-  } else if (byteOffset < -0x80000000) {
-    byteOffset = -0x80000000
-  }
-  byteOffset = +byteOffset // Coerce to Number.
-  if (numberIsNaN(byteOffset)) {
-    // byteOffset: it it's undefined, null, NaN, "foo", etc, search whole buffer
-    byteOffset = dir ? 0 : (buffer.length - 1)
-  }
-
-  // Normalize byteOffset: negative offsets start from the end of the buffer
-  if (byteOffset < 0) byteOffset = buffer.length + byteOffset
-  if (byteOffset >= buffer.length) {
-    if (dir) return -1
-    else byteOffset = buffer.length - 1
-  } else if (byteOffset < 0) {
-    if (dir) byteOffset = 0
-    else return -1
-  }
-
-  // Normalize val
-  if (typeof val === 'string') {
-    val = Buffer.from(val, encoding)
-  }
-
-  // Finally, search either indexOf (if dir is true) or lastIndexOf
-  if (Buffer.isBuffer(val)) {
-    // Special case: looking for empty string/buffer always fails
-    if (val.length === 0) {
-      return -1
-    }
-    return arrayIndexOf(buffer, val, byteOffset, encoding, dir)
-  } else if (typeof val === 'number') {
-    val = val & 0xFF // Search for a byte value [0-255]
-    if (typeof Uint8Array.prototype.indexOf === 'function') {
-      if (dir) {
-        return Uint8Array.prototype.indexOf.call(buffer, val, byteOffset)
-      } else {
-        return Uint8Array.prototype.lastIndexOf.call(buffer, val, byteOffset)
-      }
-    }
-    return arrayIndexOf(buffer, [ val ], byteOffset, encoding, dir)
-  }
-
-  throw new TypeError('val must be string, number or Buffer')
-}
-
-function arrayIndexOf (arr, val, byteOffset, encoding, dir) {
-  var indexSize = 1
-  var arrLength = arr.length
-  var valLength = val.length
-
-  if (encoding !== undefined) {
-    encoding = String(encoding).toLowerCase()
-    if (encoding === 'ucs2' || encoding === 'ucs-2' ||
-        encoding === 'utf16le' || encoding === 'utf-16le') {
-      if (arr.length < 2 || val.length < 2) {
-        return -1
-      }
-      indexSize = 2
-      arrLength /= 2
-      valLength /= 2
-      byteOffset /= 2
-    }
-  }
-
-  function read (buf, i) {
-    if (indexSize === 1) {
-      return buf[i]
-    } else {
-      return buf.readUInt16BE(i * indexSize)
-    }
-  }
-
-  var i
-  if (dir) {
-    var foundIndex = -1
-    for (i = byteOffset; i < arrLength; i++) {
-      if (read(arr, i) === read(val, foundIndex === -1 ? 0 : i - foundIndex)) {
-        if (foundIndex === -1) foundIndex = i
-        if (i - foundIndex + 1 === valLength) return foundIndex * indexSize
-      } else {
-        if (foundIndex !== -1) i -= i - foundIndex
-        foundIndex = -1
-      }
-    }
-  } else {
-    if (byteOffset + valLength > arrLength) byteOffset = arrLength - valLength
-    for (i = byteOffset; i >= 0; i--) {
-      var found = true
-      for (var j = 0; j < valLength; j++) {
-        if (read(arr, i + j) !== read(val, j)) {
-          found = false
-          break
-        }
-      }
-      if (found) return i
-    }
-  }
-
-  return -1
-}
-
-Buffer.prototype.includes = function includes (val, byteOffset, encoding) {
-  return this.indexOf(val, byteOffset, encoding) !== -1
-}
-
-Buffer.prototype.indexOf = function indexOf (val, byteOffset, encoding) {
-  return bidirectionalIndexOf(this, val, byteOffset, encoding, true)
-}
-
-Buffer.prototype.lastIndexOf = function lastIndexOf (val, byteOffset, encoding) {
-  return bidirectionalIndexOf(this, val, byteOffset, encoding, false)
-}
-
-function hexWrite (buf, string, offset, length) {
-  offset = Number(offset) || 0
-  var remaining = buf.length - offset
-  if (!length) {
-    length = remaining
-  } else {
-    length = Number(length)
-    if (length > remaining) {
-      length = remaining
-    }
-  }
-
-  var strLen = string.length
-
-  if (length > strLen / 2) {
-    length = strLen / 2
-  }
-  for (var i = 0; i < length; ++i) {
-    var parsed = parseInt(string.substr(i * 2, 2), 16)
-    if (numberIsNaN(parsed)) return i
-    buf[offset + i] = parsed
-  }
-  return i
-}
-
-function utf8Write (buf, string, offset, length) {
-  return blitBuffer(utf8ToBytes(string, buf.length - offset), buf, offset, length)
-}
-
-function asciiWrite (buf, string, offset, length) {
-  return blitBuffer(asciiToBytes(string), buf, offset, length)
-}
-
-function latin1Write (buf, string, offset, length) {
-  return asciiWrite(buf, string, offset, length)
-}
-
-function base64Write (buf, string, offset, length) {
-  return blitBuffer(base64ToBytes(string), buf, offset, length)
-}
-
-function ucs2Write (buf, string, offset, length) {
-  return blitBuffer(utf16leToBytes(string, buf.length - offset), buf, offset, length)
-}
-
-Buffer.prototype.write = function write (string, offset, length, encoding) {
-  // Buffer#write(string)
-  if (offset === undefined) {
-    encoding = 'utf8'
-    length = this.length
-    offset = 0
-  // Buffer#write(string, encoding)
-  } else if (length === undefined && typeof offset === 'string') {
-    encoding = offset
-    length = this.length
-    offset = 0
-  // Buffer#write(string, offset[, length][, encoding])
-  } else if (isFinite(offset)) {
-    offset = offset >>> 0
-    if (isFinite(length)) {
-      length = length >>> 0
-      if (encoding === undefined) encoding = 'utf8'
-    } else {
-      encoding = length
-      length = undefined
-    }
-  } else {
-    throw new Error(
-      'Buffer.write(string, encoding, offset[, length]) is no longer supported'
-    )
-  }
-
-  var remaining = this.length - offset
-  if (length === undefined || length > remaining) length = remaining
-
-  if ((string.length > 0 && (length < 0 || offset < 0)) || offset > this.length) {
-    throw new RangeError('Attempt to write outside buffer bounds')
-  }
-
-  if (!encoding) encoding = 'utf8'
-
-  var loweredCase = false
-  for (;;) {
-    switch (encoding) {
-      case 'hex':
-        return hexWrite(this, string, offset, length)
-
-      case 'utf8':
-      case 'utf-8':
-        return utf8Write(this, string, offset, length)
-
-      case 'ascii':
-        return asciiWrite(this, string, offset, length)
-
-      case 'latin1':
-      case 'binary':
-        return latin1Write(this, string, offset, length)
-
-      case 'base64':
-        // Warning: maxLength not taken into account in base64Write
-        return base64Write(this, string, offset, length)
-
-      case 'ucs2':
-      case 'ucs-2':
-      case 'utf16le':
-      case 'utf-16le':
-        return ucs2Write(this, string, offset, length)
-
-      default:
-        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
-        encoding = ('' + encoding).toLowerCase()
-        loweredCase = true
-    }
-  }
-}
-
-Buffer.prototype.toJSON = function toJSON () {
-  return {
-    type: 'Buffer',
-    data: Array.prototype.slice.call(this._arr || this, 0)
-  }
-}
-
-function base64Slice (buf, start, end) {
-  if (start === 0 && end === buf.length) {
-    return base64.fromByteArray(buf)
-  } else {
-    return base64.fromByteArray(buf.slice(start, end))
-  }
-}
-
-function utf8Slice (buf, start, end) {
-  end = Math.min(buf.length, end)
-  var res = []
-
-  var i = start
-  while (i < end) {
-    var firstByte = buf[i]
-    var codePoint = null
-    var bytesPerSequence = (firstByte > 0xEF) ? 4
-      : (firstByte > 0xDF) ? 3
-        : (firstByte > 0xBF) ? 2
-          : 1
-
-    if (i + bytesPerSequence <= end) {
-      var secondByte, thirdByte, fourthByte, tempCodePoint
-
-      switch (bytesPerSequence) {
-        case 1:
-          if (firstByte < 0x80) {
-            codePoint = firstByte
-          }
-          break
-        case 2:
-          secondByte = buf[i + 1]
-          if ((secondByte & 0xC0) === 0x80) {
-            tempCodePoint = (firstByte & 0x1F) << 0x6 | (secondByte & 0x3F)
-            if (tempCodePoint > 0x7F) {
-              codePoint = tempCodePoint
-            }
-          }
-          break
-        case 3:
-          secondByte = buf[i + 1]
-          thirdByte = buf[i + 2]
-          if ((secondByte & 0xC0) === 0x80 && (thirdByte & 0xC0) === 0x80) {
-            tempCodePoint = (firstByte & 0xF) << 0xC | (secondByte & 0x3F) << 0x6 | (thirdByte & 0x3F)
-            if (tempCodePoint > 0x7FF && (tempCodePoint < 0xD800 || tempCodePoint > 0xDFFF)) {
-              codePoint = tempCodePoint
-            }
-          }
-          break
-        case 4:
-          secondByte = buf[i + 1]
-          thirdByte = buf[i + 2]
-          fourthByte = buf[i + 3]
-          if ((secondByte & 0xC0) === 0x80 && (thirdByte & 0xC0) === 0x80 && (fourthByte & 0xC0) === 0x80) {
-            tempCodePoint = (firstByte & 0xF) << 0x12 | (secondByte & 0x3F) << 0xC | (thirdByte & 0x3F) << 0x6 | (fourthByte & 0x3F)
-            if (tempCodePoint > 0xFFFF && tempCodePoint < 0x110000) {
-              codePoint = tempCodePoint
-            }
-          }
-      }
-    }
-
-    if (codePoint === null) {
-      // we did not generate a valid codePoint so insert a
-      // replacement char (U+FFFD) and advance only 1 byte
-      codePoint = 0xFFFD
-      bytesPerSequence = 1
-    } else if (codePoint > 0xFFFF) {
-      // encode to utf16 (surrogate pair dance)
-      codePoint -= 0x10000
-      res.push(codePoint >>> 10 & 0x3FF | 0xD800)
-      codePoint = 0xDC00 | codePoint & 0x3FF
-    }
-
-    res.push(codePoint)
-    i += bytesPerSequence
-  }
-
-  return decodeCodePointsArray(res)
-}
-
-// Based on http://stackoverflow.com/a/22747272/680742, the browser with
-// the lowest limit is Chrome, with 0x10000 args.
-// We go 1 magnitude less, for safety
-var MAX_ARGUMENTS_LENGTH = 0x1000
-
-function decodeCodePointsArray (codePoints) {
-  var len = codePoints.length
-  if (len <= MAX_ARGUMENTS_LENGTH) {
-    return String.fromCharCode.apply(String, codePoints) // avoid extra slice()
-  }
-
-  // Decode in chunks to avoid "call stack size exceeded".
-  var res = ''
-  var i = 0
-  while (i < len) {
-    res += String.fromCharCode.apply(
-      String,
-      codePoints.slice(i, i += MAX_ARGUMENTS_LENGTH)
-    )
-  }
-  return res
-}
-
-function asciiSlice (buf, start, end) {
-  var ret = ''
-  end = Math.min(buf.length, end)
-
-  for (var i = start; i < end; ++i) {
-    ret += String.fromCharCode(buf[i] & 0x7F)
-  }
-  return ret
-}
-
-function latin1Slice (buf, start, end) {
-  var ret = ''
-  end = Math.min(buf.length, end)
-
-  for (var i = start; i < end; ++i) {
-    ret += String.fromCharCode(buf[i])
-  }
-  return ret
-}
-
-function hexSlice (buf, start, end) {
-  var len = buf.length
-
-  if (!start || start < 0) start = 0
-  if (!end || end < 0 || end > len) end = len
-
-  var out = ''
-  for (var i = start; i < end; ++i) {
-    out += toHex(buf[i])
-  }
-  return out
-}
-
-function utf16leSlice (buf, start, end) {
-  var bytes = buf.slice(start, end)
-  var res = ''
-  for (var i = 0; i < bytes.length; i += 2) {
-    res += String.fromCharCode(bytes[i] + (bytes[i + 1] * 256))
-  }
-  return res
-}
-
-Buffer.prototype.slice = function slice (start, end) {
-  var len = this.length
-  start = ~~start
-  end = end === undefined ? len : ~~end
-
-  if (start < 0) {
-    start += len
-    if (start < 0) start = 0
-  } else if (start > len) {
-    start = len
-  }
-
-  if (end < 0) {
-    end += len
-    if (end < 0) end = 0
-  } else if (end > len) {
-    end = len
-  }
-
-  if (end < start) end = start
-
-  var newBuf = this.subarray(start, end)
-  // Return an augmented `Uint8Array` instance
-  newBuf.__proto__ = Buffer.prototype
-  return newBuf
-}
-
-/*
- * Need to make sure that buffer isn't trying to write out of bounds.
- */
-function checkOffset (offset, ext, length) {
-  if ((offset % 1) !== 0 || offset < 0) throw new RangeError('offset is not uint')
-  if (offset + ext > length) throw new RangeError('Trying to access beyond buffer length')
-}
-
-Buffer.prototype.readUIntLE = function readUIntLE (offset, byteLength, noAssert) {
-  offset = offset >>> 0
-  byteLength = byteLength >>> 0
-  if (!noAssert) checkOffset(offset, byteLength, this.length)
-
-  var val = this[offset]
-  var mul = 1
-  var i = 0
-  while (++i < byteLength && (mul *= 0x100)) {
-    val += this[offset + i] * mul
-  }
-
-  return val
-}
-
-Buffer.prototype.readUIntBE = function readUIntBE (offset, byteLength, noAssert) {
-  offset = offset >>> 0
-  byteLength = byteLength >>> 0
-  if (!noAssert) {
-    checkOffset(offset, byteLength, this.length)
-  }
-
-  var val = this[offset + --byteLength]
-  var mul = 1
-  while (byteLength > 0 && (mul *= 0x100)) {
-    val += this[offset + --byteLength] * mul
-  }
-
-  return val
-}
-
-Buffer.prototype.readUInt8 = function readUInt8 (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 1, this.length)
-  return this[offset]
-}
-
-Buffer.prototype.readUInt16LE = function readUInt16LE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 2, this.length)
-  return this[offset] | (this[offset + 1] << 8)
-}
-
-Buffer.prototype.readUInt16BE = function readUInt16BE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 2, this.length)
-  return (this[offset] << 8) | this[offset + 1]
-}
-
-Buffer.prototype.readUInt32LE = function readUInt32LE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 4, this.length)
-
-  return ((this[offset]) |
-      (this[offset + 1] << 8) |
-      (this[offset + 2] << 16)) +
-      (this[offset + 3] * 0x1000000)
-}
-
-Buffer.prototype.readUInt32BE = function readUInt32BE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 4, this.length)
-
-  return (this[offset] * 0x1000000) +
-    ((this[offset + 1] << 16) |
-    (this[offset + 2] << 8) |
-    this[offset + 3])
-}
-
-Buffer.prototype.readIntLE = function readIntLE (offset, byteLength, noAssert) {
-  offset = offset >>> 0
-  byteLength = byteLength >>> 0
-  if (!noAssert) checkOffset(offset, byteLength, this.length)
-
-  var val = this[offset]
-  var mul = 1
-  var i = 0
-  while (++i < byteLength && (mul *= 0x100)) {
-    val += this[offset + i] * mul
-  }
-  mul *= 0x80
-
-  if (val >= mul) val -= Math.pow(2, 8 * byteLength)
-
-  return val
-}
-
-Buffer.prototype.readIntBE = function readIntBE (offset, byteLength, noAssert) {
-  offset = offset >>> 0
-  byteLength = byteLength >>> 0
-  if (!noAssert) checkOffset(offset, byteLength, this.length)
-
-  var i = byteLength
-  var mul = 1
-  var val = this[offset + --i]
-  while (i > 0 && (mul *= 0x100)) {
-    val += this[offset + --i] * mul
-  }
-  mul *= 0x80
-
-  if (val >= mul) val -= Math.pow(2, 8 * byteLength)
-
-  return val
-}
-
-Buffer.prototype.readInt8 = function readInt8 (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 1, this.length)
-  if (!(this[offset] & 0x80)) return (this[offset])
-  return ((0xff - this[offset] + 1) * -1)
-}
-
-Buffer.prototype.readInt16LE = function readInt16LE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 2, this.length)
-  var val = this[offset] | (this[offset + 1] << 8)
-  return (val & 0x8000) ? val | 0xFFFF0000 : val
-}
-
-Buffer.prototype.readInt16BE = function readInt16BE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 2, this.length)
-  var val = this[offset + 1] | (this[offset] << 8)
-  return (val & 0x8000) ? val | 0xFFFF0000 : val
-}
-
-Buffer.prototype.readInt32LE = function readInt32LE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 4, this.length)
-
-  return (this[offset]) |
-    (this[offset + 1] << 8) |
-    (this[offset + 2] << 16) |
-    (this[offset + 3] << 24)
-}
-
-Buffer.prototype.readInt32BE = function readInt32BE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 4, this.length)
-
-  return (this[offset] << 24) |
-    (this[offset + 1] << 16) |
-    (this[offset + 2] << 8) |
-    (this[offset + 3])
-}
-
-Buffer.prototype.readFloatLE = function readFloatLE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 4, this.length)
-  return ieee754.read(this, offset, true, 23, 4)
-}
-
-Buffer.prototype.readFloatBE = function readFloatBE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 4, this.length)
-  return ieee754.read(this, offset, false, 23, 4)
-}
-
-Buffer.prototype.readDoubleLE = function readDoubleLE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 8, this.length)
-  return ieee754.read(this, offset, true, 52, 8)
-}
-
-Buffer.prototype.readDoubleBE = function readDoubleBE (offset, noAssert) {
-  offset = offset >>> 0
-  if (!noAssert) checkOffset(offset, 8, this.length)
-  return ieee754.read(this, offset, false, 52, 8)
-}
-
-function checkInt (buf, value, offset, ext, max, min) {
-  if (!Buffer.isBuffer(buf)) throw new TypeError('"buffer" argument must be a Buffer instance')
-  if (value > max || value < min) throw new RangeError('"value" argument is out of bounds')
-  if (offset + ext > buf.length) throw new RangeError('Index out of range')
-}
-
-Buffer.prototype.writeUIntLE = function writeUIntLE (value, offset, byteLength, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  byteLength = byteLength >>> 0
-  if (!noAssert) {
-    var maxBytes = Math.pow(2, 8 * byteLength) - 1
-    checkInt(this, value, offset, byteLength, maxBytes, 0)
-  }
-
-  var mul = 1
-  var i = 0
-  this[offset] = value & 0xFF
-  while (++i < byteLength && (mul *= 0x100)) {
-    this[offset + i] = (value / mul) & 0xFF
-  }
-
-  return offset + byteLength
-}
-
-Buffer.prototype.writeUIntBE = function writeUIntBE (value, offset, byteLength, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  byteLength = byteLength >>> 0
-  if (!noAssert) {
-    var maxBytes = Math.pow(2, 8 * byteLength) - 1
-    checkInt(this, value, offset, byteLength, maxBytes, 0)
-  }
-
-  var i = byteLength - 1
-  var mul = 1
-  this[offset + i] = value & 0xFF
-  while (--i >= 0 && (mul *= 0x100)) {
-    this[offset + i] = (value / mul) & 0xFF
-  }
-
-  return offset + byteLength
-}
-
-Buffer.prototype.writeUInt8 = function writeUInt8 (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 1, 0xff, 0)
-  this[offset] = (value & 0xff)
-  return offset + 1
-}
-
-Buffer.prototype.writeUInt16LE = function writeUInt16LE (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0)
-  this[offset] = (value & 0xff)
-  this[offset + 1] = (value >>> 8)
-  return offset + 2
-}
-
-Buffer.prototype.writeUInt16BE = function writeUInt16BE (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0)
-  this[offset] = (value >>> 8)
-  this[offset + 1] = (value & 0xff)
-  return offset + 2
-}
-
-Buffer.prototype.writeUInt32LE = function writeUInt32LE (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0)
-  this[offset + 3] = (value >>> 24)
-  this[offset + 2] = (value >>> 16)
-  this[offset + 1] = (value >>> 8)
-  this[offset] = (value & 0xff)
-  return offset + 4
-}
-
-Buffer.prototype.writeUInt32BE = function writeUInt32BE (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0)
-  this[offset] = (value >>> 24)
-  this[offset + 1] = (value >>> 16)
-  this[offset + 2] = (value >>> 8)
-  this[offset + 3] = (value & 0xff)
-  return offset + 4
-}
-
-Buffer.prototype.writeIntLE = function writeIntLE (value, offset, byteLength, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) {
-    var limit = Math.pow(2, (8 * byteLength) - 1)
-
-    checkInt(this, value, offset, byteLength, limit - 1, -limit)
-  }
-
-  var i = 0
-  var mul = 1
-  var sub = 0
-  this[offset] = value & 0xFF
-  while (++i < byteLength && (mul *= 0x100)) {
-    if (value < 0 && sub === 0 && this[offset + i - 1] !== 0) {
-      sub = 1
-    }
-    this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
-  }
-
-  return offset + byteLength
-}
-
-Buffer.prototype.writeIntBE = function writeIntBE (value, offset, byteLength, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) {
-    var limit = Math.pow(2, (8 * byteLength) - 1)
-
-    checkInt(this, value, offset, byteLength, limit - 1, -limit)
-  }
-
-  var i = byteLength - 1
-  var mul = 1
-  var sub = 0
-  this[offset + i] = value & 0xFF
-  while (--i >= 0 && (mul *= 0x100)) {
-    if (value < 0 && sub === 0 && this[offset + i + 1] !== 0) {
-      sub = 1
-    }
-    this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
-  }
-
-  return offset + byteLength
-}
-
-Buffer.prototype.writeInt8 = function writeInt8 (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 1, 0x7f, -0x80)
-  if (value < 0) value = 0xff + value + 1
-  this[offset] = (value & 0xff)
-  return offset + 1
-}
-
-Buffer.prototype.writeInt16LE = function writeInt16LE (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000)
-  this[offset] = (value & 0xff)
-  this[offset + 1] = (value >>> 8)
-  return offset + 2
-}
-
-Buffer.prototype.writeInt16BE = function writeInt16BE (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000)
-  this[offset] = (value >>> 8)
-  this[offset + 1] = (value & 0xff)
-  return offset + 2
-}
-
-Buffer.prototype.writeInt32LE = function writeInt32LE (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
-  this[offset] = (value & 0xff)
-  this[offset + 1] = (value >>> 8)
-  this[offset + 2] = (value >>> 16)
-  this[offset + 3] = (value >>> 24)
-  return offset + 4
-}
-
-Buffer.prototype.writeInt32BE = function writeInt32BE (value, offset, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
-  if (value < 0) value = 0xffffffff + value + 1
-  this[offset] = (value >>> 24)
-  this[offset + 1] = (value >>> 16)
-  this[offset + 2] = (value >>> 8)
-  this[offset + 3] = (value & 0xff)
-  return offset + 4
-}
-
-function checkIEEE754 (buf, value, offset, ext, max, min) {
-  if (offset + ext > buf.length) throw new RangeError('Index out of range')
-  if (offset < 0) throw new RangeError('Index out of range')
-}
-
-function writeFloat (buf, value, offset, littleEndian, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) {
-    checkIEEE754(buf, value, offset, 4, 3.4028234663852886e+38, -3.4028234663852886e+38)
-  }
-  ieee754.write(buf, value, offset, littleEndian, 23, 4)
-  return offset + 4
-}
-
-Buffer.prototype.writeFloatLE = function writeFloatLE (value, offset, noAssert) {
-  return writeFloat(this, value, offset, true, noAssert)
-}
-
-Buffer.prototype.writeFloatBE = function writeFloatBE (value, offset, noAssert) {
-  return writeFloat(this, value, offset, false, noAssert)
-}
-
-function writeDouble (buf, value, offset, littleEndian, noAssert) {
-  value = +value
-  offset = offset >>> 0
-  if (!noAssert) {
-    checkIEEE754(buf, value, offset, 8, 1.7976931348623157E+308, -1.7976931348623157E+308)
-  }
-  ieee754.write(buf, value, offset, littleEndian, 52, 8)
-  return offset + 8
-}
-
-Buffer.prototype.writeDoubleLE = function writeDoubleLE (value, offset, noAssert) {
-  return writeDouble(this, value, offset, true, noAssert)
-}
-
-Buffer.prototype.writeDoubleBE = function writeDoubleBE (value, offset, noAssert) {
-  return writeDouble(this, value, offset, false, noAssert)
-}
-
-// copy(targetBuffer, targetStart=0, sourceStart=0, sourceEnd=buffer.length)
-Buffer.prototype.copy = function copy (target, targetStart, start, end) {
-  if (!Buffer.isBuffer(target)) throw new TypeError('argument should be a Buffer')
-  if (!start) start = 0
-  if (!end && end !== 0) end = this.length
-  if (targetStart >= target.length) targetStart = target.length
-  if (!targetStart) targetStart = 0
-  if (end > 0 && end < start) end = start
-
-  // Copy 0 bytes; we're done
-  if (end === start) return 0
-  if (target.length === 0 || this.length === 0) return 0
-
-  // Fatal error conditions
-  if (targetStart < 0) {
-    throw new RangeError('targetStart out of bounds')
-  }
-  if (start < 0 || start >= this.length) throw new RangeError('Index out of range')
-  if (end < 0) throw new RangeError('sourceEnd out of bounds')
-
-  // Are we oob?
-  if (end > this.length) end = this.length
-  if (target.length - targetStart < end - start) {
-    end = target.length - targetStart + start
-  }
-
-  var len = end - start
-
-  if (this === target && typeof Uint8Array.prototype.copyWithin === 'function') {
-    // Use built-in when available, missing from IE11
-    this.copyWithin(targetStart, start, end)
-  } else if (this === target && start < targetStart && targetStart < end) {
-    // descending copy from end
-    for (var i = len - 1; i >= 0; --i) {
-      target[i + targetStart] = this[i + start]
-    }
-  } else {
-    Uint8Array.prototype.set.call(
-      target,
-      this.subarray(start, end),
-      targetStart
-    )
-  }
-
-  return len
-}
-
-// Usage:
-//    buffer.fill(number[, offset[, end]])
-//    buffer.fill(buffer[, offset[, end]])
-//    buffer.fill(string[, offset[, end]][, encoding])
-Buffer.prototype.fill = function fill (val, start, end, encoding) {
-  // Handle string cases:
-  if (typeof val === 'string') {
-    if (typeof start === 'string') {
-      encoding = start
-      start = 0
-      end = this.length
-    } else if (typeof end === 'string') {
-      encoding = end
-      end = this.length
-    }
-    if (encoding !== undefined && typeof encoding !== 'string') {
-      throw new TypeError('encoding must be a string')
-    }
-    if (typeof encoding === 'string' && !Buffer.isEncoding(encoding)) {
-      throw new TypeError('Unknown encoding: ' + encoding)
-    }
-    if (val.length === 1) {
-      var code = val.charCodeAt(0)
-      if ((encoding === 'utf8' && code < 128) ||
-          encoding === 'latin1') {
-        // Fast path: If `val` fits into a single byte, use that numeric value.
-        val = code
-      }
-    }
-  } else if (typeof val === 'number') {
-    val = val & 255
-  }
-
-  // Invalid ranges are not set to a default, so can range check early.
-  if (start < 0 || this.length < start || this.length < end) {
-    throw new RangeError('Out of range index')
-  }
-
-  if (end <= start) {
-    return this
-  }
-
-  start = start >>> 0
-  end = end === undefined ? this.length : end >>> 0
-
-  if (!val) val = 0
-
-  var i
-  if (typeof val === 'number') {
-    for (i = start; i < end; ++i) {
-      this[i] = val
-    }
-  } else {
-    var bytes = Buffer.isBuffer(val)
-      ? val
-      : Buffer.from(val, encoding)
-    var len = bytes.length
-    if (len === 0) {
-      throw new TypeError('The value "' + val +
-        '" is invalid for argument "value"')
-    }
-    for (i = 0; i < end - start; ++i) {
-      this[i + start] = bytes[i % len]
-    }
-  }
-
-  return this
-}
-
-// HELPER FUNCTIONS
-// ================
-
-var INVALID_BASE64_RE = /[^+/0-9A-Za-z-_]/g
-
-function base64clean (str) {
-  // Node takes equal signs as end of the Base64 encoding
-  str = str.split('=')[0]
-  // Node strips out invalid characters like \n and \t from the string, base64-js does not
-  str = str.trim().replace(INVALID_BASE64_RE, '')
-  // Node converts strings with length < 2 to ''
-  if (str.length < 2) return ''
-  // Node allows for non-padded base64 strings (missing trailing ===), base64-js does not
-  while (str.length % 4 !== 0) {
-    str = str + '='
-  }
-  return str
-}
-
-function toHex (n) {
-  if (n < 16) return '0' + n.toString(16)
-  return n.toString(16)
-}
-
-function utf8ToBytes (string, units) {
-  units = units || Infinity
-  var codePoint
-  var length = string.length
-  var leadSurrogate = null
-  var bytes = []
-
-  for (var i = 0; i < length; ++i) {
-    codePoint = string.charCodeAt(i)
-
-    // is surrogate component
-    if (codePoint > 0xD7FF && codePoint < 0xE000) {
-      // last char was a lead
-      if (!leadSurrogate) {
-        // no lead yet
-        if (codePoint > 0xDBFF) {
-          // unexpected trail
-          if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
-          continue
-        } else if (i + 1 === length) {
-          // unpaired lead
-          if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
-          continue
-        }
-
-        // valid lead
-        leadSurrogate = codePoint
-
-        continue
-      }
-
-      // 2 leads in a row
-      if (codePoint < 0xDC00) {
-        if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
-        leadSurrogate = codePoint
-        continue
-      }
-
-      // valid surrogate pair
-      codePoint = (leadSurrogate - 0xD800 << 10 | codePoint - 0xDC00) + 0x10000
-    } else if (leadSurrogate) {
-      // valid bmp char, but last char was a lead
-      if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
-    }
-
-    leadSurrogate = null
-
-    // encode utf8
-    if (codePoint < 0x80) {
-      if ((units -= 1) < 0) break
-      bytes.push(codePoint)
-    } else if (codePoint < 0x800) {
-      if ((units -= 2) < 0) break
-      bytes.push(
-        codePoint >> 0x6 | 0xC0,
-        codePoint & 0x3F | 0x80
-      )
-    } else if (codePoint < 0x10000) {
-      if ((units -= 3) < 0) break
-      bytes.push(
-        codePoint >> 0xC | 0xE0,
-        codePoint >> 0x6 & 0x3F | 0x80,
-        codePoint & 0x3F | 0x80
-      )
-    } else if (codePoint < 0x110000) {
-      if ((units -= 4) < 0) break
-      bytes.push(
-        codePoint >> 0x12 | 0xF0,
-        codePoint >> 0xC & 0x3F | 0x80,
-        codePoint >> 0x6 & 0x3F | 0x80,
-        codePoint & 0x3F | 0x80
-      )
-    } else {
-      throw new Error('Invalid code point')
-    }
-  }
-
-  return bytes
-}
-
-function asciiToBytes (str) {
-  var byteArray = []
-  for (var i = 0; i < str.length; ++i) {
-    // Node's code seems to be doing this and not & 0x7F..
-    byteArray.push(str.charCodeAt(i) & 0xFF)
-  }
-  return byteArray
-}
-
-function utf16leToBytes (str, units) {
-  var c, hi, lo
-  var byteArray = []
-  for (var i = 0; i < str.length; ++i) {
-    if ((units -= 2) < 0) break
-
-    c = str.charCodeAt(i)
-    hi = c >> 8
-    lo = c % 256
-    byteArray.push(lo)
-    byteArray.push(hi)
-  }
-
-  return byteArray
-}
-
-function base64ToBytes (str) {
-  return base64.toByteArray(base64clean(str))
-}
-
-function blitBuffer (src, dst, offset, length) {
-  for (var i = 0; i < length; ++i) {
-    if ((i + offset >= dst.length) || (i >= src.length)) break
-    dst[i + offset] = src[i]
-  }
-  return i
-}
-
-// ArrayBuffer or Uint8Array objects from other contexts (i.e. iframes) do not pass
-// the `instanceof` check but they should be treated as of that type.
-// See: https://github.com/feross/buffer/issues/166
-function isInstance (obj, type) {
-  return obj instanceof type ||
-    (obj != null && obj.constructor != null && obj.constructor.name != null &&
-      obj.constructor.name === type.name)
-}
-function numberIsNaN (obj) {
-  // For IE11 support
-  return obj !== obj // eslint-disable-line no-self-compare
-}
-
-}).call(this)}).call(this,require("buffer").Buffer)
-},{"base64-js":1,"buffer":2,"ieee754":11}],3:[function(require,module,exports){
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],3:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.HomeSectionType = void 0;
+var HomeSectionType;
+(function (HomeSectionType) {
+    HomeSectionType["singleRowNormal"] = "singleRowNormal";
+    HomeSectionType["singleRowLarge"] = "singleRowLarge";
+    HomeSectionType["doubleRow"] = "doubleRow";
+    HomeSectionType["featured"] = "featured";
+})(HomeSectionType = exports.HomeSectionType || (exports.HomeSectionType = {}));
+
+},{}],4:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],5:[function(require,module,exports){
+"use strict";
+/**
+ * Request objects hold information for a particular source (see sources for example)
+ * This allows us to to use a generic api to make the calls against any source
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.urlEncodeObject = exports.convertTime = exports.Source = void 0;
+/**
+* @deprecated Use {@link PaperbackExtensionBase}
+*/
+class Source {
+    constructor(cheerio) {
+        this.cheerio = cheerio;
+    }
+    /**
+     * @deprecated use {@link Source.getSearchResults getSearchResults} instead
+     */
+    searchRequest(query, metadata) {
+        return this.getSearchResults(query, metadata);
+    }
+    /**
+     * @deprecated use {@link Source.getSearchTags} instead
+     */
+    async getTags() {
+        // @ts-ignore
+        return this.getSearchTags?.();
+    }
+}
+exports.Source = Source;
+// Many sites use '[x] time ago' - Figured it would be good to handle these cases in general
+function convertTime(timeAgo) {
+    let time;
+    let trimmed = Number((/\d*/.exec(timeAgo) ?? [])[0]);
+    trimmed = (trimmed == 0 && timeAgo.includes('a')) ? 1 : trimmed;
+    if (timeAgo.includes('minutes')) {
+        time = new Date(Date.now() - trimmed * 60000);
+    }
+    else if (timeAgo.includes('hours')) {
+        time = new Date(Date.now() - trimmed * 3600000);
+    }
+    else if (timeAgo.includes('days')) {
+        time = new Date(Date.now() - trimmed * 86400000);
+    }
+    else if (timeAgo.includes('year') || timeAgo.includes('years')) {
+        time = new Date(Date.now() - trimmed * 31556952000);
+    }
+    else {
+        time = new Date(Date.now());
+    }
+    return time;
+}
+exports.convertTime = convertTime;
+/**
+ * When a function requires a POST body, it always should be defined as a JsonObject
+ * and then passed through this function to ensure that it's encoded properly.
+ * @param obj
+ */
+function urlEncodeObject(obj) {
+    let ret = {};
+    for (const entry of Object.entries(obj)) {
+        ret[encodeURIComponent(entry[0])] = encodeURIComponent(entry[1]);
+    }
+    return ret;
+}
+exports.urlEncodeObject = urlEncodeObject;
+
+},{}],6:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ContentRating = exports.SourceIntents = void 0;
+var SourceIntents;
+(function (SourceIntents) {
+    SourceIntents[SourceIntents["MANGA_CHAPTERS"] = 1] = "MANGA_CHAPTERS";
+    SourceIntents[SourceIntents["MANGA_TRACKING"] = 2] = "MANGA_TRACKING";
+    SourceIntents[SourceIntents["HOMEPAGE_SECTIONS"] = 4] = "HOMEPAGE_SECTIONS";
+    SourceIntents[SourceIntents["COLLECTION_MANAGEMENT"] = 8] = "COLLECTION_MANAGEMENT";
+    SourceIntents[SourceIntents["CLOUDFLARE_BYPASS_REQUIRED"] = 16] = "CLOUDFLARE_BYPASS_REQUIRED";
+    SourceIntents[SourceIntents["SETTINGS_UI"] = 32] = "SETTINGS_UI";
+})(SourceIntents = exports.SourceIntents || (exports.SourceIntents = {}));
+/**
+ * A content rating to be attributed to each source.
+ */
+var ContentRating;
+(function (ContentRating) {
+    ContentRating["EVERYONE"] = "EVERYONE";
+    ContentRating["MATURE"] = "MATURE";
+    ContentRating["ADULT"] = "ADULT";
+})(ContentRating = exports.ContentRating || (exports.ContentRating = {}));
+
+},{}],7:[function(require,module,exports){
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(require("./Source"), exports);
+__exportStar(require("./ByteArray"), exports);
+__exportStar(require("./Badge"), exports);
+__exportStar(require("./interfaces"), exports);
+__exportStar(require("./SourceInfo"), exports);
+__exportStar(require("./HomeSectionType"), exports);
+__exportStar(require("./PaperbackExtensionBase"), exports);
+
+},{"./Badge":1,"./ByteArray":2,"./HomeSectionType":3,"./PaperbackExtensionBase":4,"./Source":5,"./SourceInfo":6,"./interfaces":15}],8:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],9:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],10:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],11:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],12:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],13:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],14:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],15:[function(require,module,exports){
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(require("./ChapterProviding"), exports);
+__exportStar(require("./CloudflareBypassRequestProviding"), exports);
+__exportStar(require("./HomePageSectionsProviding"), exports);
+__exportStar(require("./MangaProgressProviding"), exports);
+__exportStar(require("./MangaProviding"), exports);
+__exportStar(require("./RequestManagerProviding"), exports);
+__exportStar(require("./SearchResultsProviding"), exports);
+
+},{"./ChapterProviding":8,"./CloudflareBypassRequestProviding":9,"./HomePageSectionsProviding":10,"./MangaProgressProviding":11,"./MangaProviding":12,"./RequestManagerProviding":13,"./SearchResultsProviding":14}],16:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],17:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],18:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],19:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],20:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],21:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],22:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],23:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],24:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],25:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],26:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],27:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],28:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],29:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],30:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],31:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],32:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],33:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],34:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],35:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],36:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],37:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],38:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],39:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],40:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],41:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],42:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],43:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],44:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],45:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],46:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],47:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],48:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],49:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],50:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],51:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],52:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],53:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],54:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],55:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],56:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],57:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],58:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],59:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+},{}],60:[function(require,module,exports){
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(require("./DynamicUI/Exports/DUIBinding"), exports);
+__exportStar(require("./DynamicUI/Exports/DUIForm"), exports);
+__exportStar(require("./DynamicUI/Exports/DUIFormRow"), exports);
+__exportStar(require("./DynamicUI/Exports/DUISection"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUIButton"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUIHeader"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUIInputField"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUILabel"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUILink"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUIMultilineLabel"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUINavigationButton"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUIOAuthButton"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUISecureInputField"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUISelect"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUIStepper"), exports);
+__exportStar(require("./DynamicUI/Rows/Exports/DUISwitch"), exports);
+__exportStar(require("./Exports/ChapterDetails"), exports);
+__exportStar(require("./Exports/Chapter"), exports);
+__exportStar(require("./Exports/Cookie"), exports);
+__exportStar(require("./Exports/HomeSection"), exports);
+__exportStar(require("./Exports/IconText"), exports);
+__exportStar(require("./Exports/MangaInfo"), exports);
+__exportStar(require("./Exports/MangaProgress"), exports);
+__exportStar(require("./Exports/PartialSourceManga"), exports);
+__exportStar(require("./Exports/MangaUpdates"), exports);
+__exportStar(require("./Exports/PBCanvas"), exports);
+__exportStar(require("./Exports/PBImage"), exports);
+__exportStar(require("./Exports/PagedResults"), exports);
+__exportStar(require("./Exports/RawData"), exports);
+__exportStar(require("./Exports/Request"), exports);
+__exportStar(require("./Exports/SourceInterceptor"), exports);
+__exportStar(require("./Exports/RequestManager"), exports);
+__exportStar(require("./Exports/Response"), exports);
+__exportStar(require("./Exports/SearchField"), exports);
+__exportStar(require("./Exports/SearchRequest"), exports);
+__exportStar(require("./Exports/SourceCookieStore"), exports);
+__exportStar(require("./Exports/SourceManga"), exports);
+__exportStar(require("./Exports/SecureStateManager"), exports);
+__exportStar(require("./Exports/SourceStateManager"), exports);
+__exportStar(require("./Exports/Tag"), exports);
+__exportStar(require("./Exports/TagSection"), exports);
+__exportStar(require("./Exports/TrackedMangaChapterReadAction"), exports);
+__exportStar(require("./Exports/TrackerActionQueue"), exports);
+
+},{"./DynamicUI/Exports/DUIBinding":17,"./DynamicUI/Exports/DUIForm":18,"./DynamicUI/Exports/DUIFormRow":19,"./DynamicUI/Exports/DUISection":20,"./DynamicUI/Rows/Exports/DUIButton":21,"./DynamicUI/Rows/Exports/DUIHeader":22,"./DynamicUI/Rows/Exports/DUIInputField":23,"./DynamicUI/Rows/Exports/DUILabel":24,"./DynamicUI/Rows/Exports/DUILink":25,"./DynamicUI/Rows/Exports/DUIMultilineLabel":26,"./DynamicUI/Rows/Exports/DUINavigationButton":27,"./DynamicUI/Rows/Exports/DUIOAuthButton":28,"./DynamicUI/Rows/Exports/DUISecureInputField":29,"./DynamicUI/Rows/Exports/DUISelect":30,"./DynamicUI/Rows/Exports/DUIStepper":31,"./DynamicUI/Rows/Exports/DUISwitch":32,"./Exports/Chapter":33,"./Exports/ChapterDetails":34,"./Exports/Cookie":35,"./Exports/HomeSection":36,"./Exports/IconText":37,"./Exports/MangaInfo":38,"./Exports/MangaProgress":39,"./Exports/MangaUpdates":40,"./Exports/PBCanvas":41,"./Exports/PBImage":42,"./Exports/PagedResults":43,"./Exports/PartialSourceManga":44,"./Exports/RawData":45,"./Exports/Request":46,"./Exports/RequestManager":47,"./Exports/Response":48,"./Exports/SearchField":49,"./Exports/SearchRequest":50,"./Exports/SecureStateManager":51,"./Exports/SourceCookieStore":52,"./Exports/SourceInterceptor":53,"./Exports/SourceManga":54,"./Exports/SourceStateManager":55,"./Exports/Tag":56,"./Exports/TagSection":57,"./Exports/TrackedMangaChapterReadAction":58,"./Exports/TrackerActionQueue":59}],61:[function(require,module,exports){
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(require("./generated/_exports"), exports);
+__exportStar(require("./base/index"), exports);
+__exportStar(require("./compat/DyamicUI"), exports);
+
+},{"./base/index":7,"./compat/DyamicUI":16,"./generated/_exports":60}],62:[function(require,module,exports){
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.decodeXML = exports.decodeHTMLStrict = exports.decodeHTML = exports.determineBranch = exports.BinTrieFlags = exports.fromCodePoint = exports.replaceCodePoint = exports.decodeCodePoint = exports.xmlDecodeTree = exports.htmlDecodeTree = void 0;
+exports.decodeXML = exports.decodeHTMLStrict = exports.decodeHTMLAttribute = exports.decodeHTML = exports.determineBranch = exports.EntityDecoder = exports.DecodingMode = exports.BinTrieFlags = exports.fromCodePoint = exports.replaceCodePoint = exports.decodeCodePoint = exports.xmlDecodeTree = exports.htmlDecodeTree = void 0;
 var decode_data_html_js_1 = __importDefault(require("./generated/decode-data-html.js"));
 exports.htmlDecodeTree = decode_data_html_js_1.default;
 var decode_data_xml_js_1 = __importDefault(require("./generated/decode-data-xml.js"));
 exports.xmlDecodeTree = decode_data_xml_js_1.default;
-var decode_codepoint_js_1 = __importDefault(require("./decode_codepoint.js"));
+var decode_codepoint_js_1 = __importStar(require("./decode_codepoint.js"));
 exports.decodeCodePoint = decode_codepoint_js_1.default;
 var decode_codepoint_js_2 = require("./decode_codepoint.js");
 Object.defineProperty(exports, "replaceCodePoint", { enumerable: true, get: function () { return decode_codepoint_js_2.replaceCodePoint; } });
@@ -1951,99 +500,421 @@ var CharCodes;
 (function (CharCodes) {
     CharCodes[CharCodes["NUM"] = 35] = "NUM";
     CharCodes[CharCodes["SEMI"] = 59] = "SEMI";
+    CharCodes[CharCodes["EQUALS"] = 61] = "EQUALS";
     CharCodes[CharCodes["ZERO"] = 48] = "ZERO";
     CharCodes[CharCodes["NINE"] = 57] = "NINE";
     CharCodes[CharCodes["LOWER_A"] = 97] = "LOWER_A";
     CharCodes[CharCodes["LOWER_F"] = 102] = "LOWER_F";
     CharCodes[CharCodes["LOWER_X"] = 120] = "LOWER_X";
-    /** Bit that needs to be set to convert an upper case ASCII character to lower case */
-    CharCodes[CharCodes["To_LOWER_BIT"] = 32] = "To_LOWER_BIT";
+    CharCodes[CharCodes["LOWER_Z"] = 122] = "LOWER_Z";
+    CharCodes[CharCodes["UPPER_A"] = 65] = "UPPER_A";
+    CharCodes[CharCodes["UPPER_F"] = 70] = "UPPER_F";
+    CharCodes[CharCodes["UPPER_Z"] = 90] = "UPPER_Z";
 })(CharCodes || (CharCodes = {}));
+/** Bit that needs to be set to convert an upper case ASCII character to lower case */
+var TO_LOWER_BIT = 32;
 var BinTrieFlags;
 (function (BinTrieFlags) {
     BinTrieFlags[BinTrieFlags["VALUE_LENGTH"] = 49152] = "VALUE_LENGTH";
     BinTrieFlags[BinTrieFlags["BRANCH_LENGTH"] = 16256] = "BRANCH_LENGTH";
     BinTrieFlags[BinTrieFlags["JUMP_TABLE"] = 127] = "JUMP_TABLE";
 })(BinTrieFlags = exports.BinTrieFlags || (exports.BinTrieFlags = {}));
-function getDecoder(decodeTree) {
-    return function decodeHTMLBinary(str, strict) {
-        var ret = "";
-        var lastIdx = 0;
-        var strIdx = 0;
-        while ((strIdx = str.indexOf("&", strIdx)) >= 0) {
-            ret += str.slice(lastIdx, strIdx);
-            lastIdx = strIdx;
-            // Skip the "&"
-            strIdx += 1;
-            // If we have a numeric entity, handle this separately.
-            if (str.charCodeAt(strIdx) === CharCodes.NUM) {
-                // Skip the leading "&#". For hex entities, also skip the leading "x".
-                var start = strIdx + 1;
-                var base = 10;
-                var cp = str.charCodeAt(start);
-                if ((cp | CharCodes.To_LOWER_BIT) === CharCodes.LOWER_X) {
-                    base = 16;
-                    strIdx += 1;
-                    start += 1;
+function isNumber(code) {
+    return code >= CharCodes.ZERO && code <= CharCodes.NINE;
+}
+function isHexadecimalCharacter(code) {
+    return ((code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_F) ||
+        (code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_F));
+}
+function isAsciiAlphaNumeric(code) {
+    return ((code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_Z) ||
+        (code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_Z) ||
+        isNumber(code));
+}
+/**
+ * Checks if the given character is a valid end character for an entity in an attribute.
+ *
+ * Attribute values that aren't terminated properly aren't parsed, and shouldn't lead to a parser error.
+ * See the example in https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
+ */
+function isEntityInAttributeInvalidEnd(code) {
+    return code === CharCodes.EQUALS || isAsciiAlphaNumeric(code);
+}
+var EntityDecoderState;
+(function (EntityDecoderState) {
+    EntityDecoderState[EntityDecoderState["EntityStart"] = 0] = "EntityStart";
+    EntityDecoderState[EntityDecoderState["NumericStart"] = 1] = "NumericStart";
+    EntityDecoderState[EntityDecoderState["NumericDecimal"] = 2] = "NumericDecimal";
+    EntityDecoderState[EntityDecoderState["NumericHex"] = 3] = "NumericHex";
+    EntityDecoderState[EntityDecoderState["NamedEntity"] = 4] = "NamedEntity";
+})(EntityDecoderState || (EntityDecoderState = {}));
+var DecodingMode;
+(function (DecodingMode) {
+    /** Entities in text nodes that can end with any character. */
+    DecodingMode[DecodingMode["Legacy"] = 0] = "Legacy";
+    /** Only allow entities terminated with a semicolon. */
+    DecodingMode[DecodingMode["Strict"] = 1] = "Strict";
+    /** Entities in attributes have limitations on ending characters. */
+    DecodingMode[DecodingMode["Attribute"] = 2] = "Attribute";
+})(DecodingMode = exports.DecodingMode || (exports.DecodingMode = {}));
+/**
+ * Token decoder with support of writing partial entities.
+ */
+var EntityDecoder = /** @class */ (function () {
+    function EntityDecoder(
+    /** The tree used to decode entities. */
+    decodeTree, 
+    /**
+     * The function that is called when a codepoint is decoded.
+     *
+     * For multi-byte named entities, this will be called multiple times,
+     * with the second codepoint, and the same `consumed` value.
+     *
+     * @param codepoint The decoded codepoint.
+     * @param consumed The number of bytes consumed by the decoder.
+     */
+    emitCodePoint, 
+    /** An object that is used to produce errors. */
+    errors) {
+        this.decodeTree = decodeTree;
+        this.emitCodePoint = emitCodePoint;
+        this.errors = errors;
+        /** The current state of the decoder. */
+        this.state = EntityDecoderState.EntityStart;
+        /** Characters that were consumed while parsing an entity. */
+        this.consumed = 1;
+        /**
+         * The result of the entity.
+         *
+         * Either the result index of a numeric entity, or the codepoint of a
+         * numeric entity.
+         */
+        this.result = 0;
+        /** The current index in the decode tree. */
+        this.treeIndex = 0;
+        /** The number of characters that were consumed in excess. */
+        this.excess = 1;
+        /** The mode in which the decoder is operating. */
+        this.decodeMode = DecodingMode.Strict;
+    }
+    /** Resets the instance to make it reusable. */
+    EntityDecoder.prototype.startEntity = function (decodeMode) {
+        this.decodeMode = decodeMode;
+        this.state = EntityDecoderState.EntityStart;
+        this.result = 0;
+        this.treeIndex = 0;
+        this.excess = 1;
+        this.consumed = 1;
+    };
+    /**
+     * Write an entity to the decoder. This can be called multiple times with partial entities.
+     * If the entity is incomplete, the decoder will return -1.
+     *
+     * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
+     * entity is incomplete, and resume when the next string is written.
+     *
+     * @param string The string containing the entity (or a continuation of the entity).
+     * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
+    EntityDecoder.prototype.write = function (str, offset) {
+        switch (this.state) {
+            case EntityDecoderState.EntityStart: {
+                if (str.charCodeAt(offset) === CharCodes.NUM) {
+                    this.state = EntityDecoderState.NumericStart;
+                    this.consumed += 1;
+                    return this.stateNumericStart(str, offset + 1);
                 }
-                do
-                    cp = str.charCodeAt(++strIdx);
-                while ((cp >= CharCodes.ZERO && cp <= CharCodes.NINE) ||
-                    (base === 16 &&
-                        (cp | CharCodes.To_LOWER_BIT) >= CharCodes.LOWER_A &&
-                        (cp | CharCodes.To_LOWER_BIT) <= CharCodes.LOWER_F));
-                if (start !== strIdx) {
-                    var entity = str.substring(start, strIdx);
-                    var parsed = parseInt(entity, base);
-                    if (str.charCodeAt(strIdx) === CharCodes.SEMI) {
-                        strIdx += 1;
-                    }
-                    else if (strict) {
-                        continue;
-                    }
-                    ret += (0, decode_codepoint_js_1.default)(parsed);
-                    lastIdx = strIdx;
-                }
-                continue;
+                this.state = EntityDecoderState.NamedEntity;
+                return this.stateNamedEntity(str, offset);
             }
-            var resultIdx = 0;
-            var excess = 1;
-            var treeIdx = 0;
-            var current = decodeTree[treeIdx];
-            for (; strIdx < str.length; strIdx++, excess++) {
-                treeIdx = determineBranch(decodeTree, current, treeIdx + 1, str.charCodeAt(strIdx));
-                if (treeIdx < 0)
-                    break;
-                current = decodeTree[treeIdx];
-                var masked = current & BinTrieFlags.VALUE_LENGTH;
-                // If the branch is a value, store it and continue
-                if (masked) {
-                    // If we have a legacy entity while parsing strictly, just skip the number of bytes
-                    if (!strict || str.charCodeAt(strIdx) === CharCodes.SEMI) {
-                        resultIdx = treeIdx;
-                        excess = 0;
-                    }
-                    // The mask is the number of bytes of the value, including the current byte.
-                    var valueLength = (masked >> 14) - 1;
-                    if (valueLength === 0)
-                        break;
-                    treeIdx += valueLength;
-                }
+            case EntityDecoderState.NumericStart: {
+                return this.stateNumericStart(str, offset);
             }
-            if (resultIdx !== 0) {
-                var valueLength = (decodeTree[resultIdx] & BinTrieFlags.VALUE_LENGTH) >> 14;
-                ret +=
-                    valueLength === 1
-                        ? String.fromCharCode(decodeTree[resultIdx] & ~BinTrieFlags.VALUE_LENGTH)
-                        : valueLength === 2
-                            ? String.fromCharCode(decodeTree[resultIdx + 1])
-                            : String.fromCharCode(decodeTree[resultIdx + 1], decodeTree[resultIdx + 2]);
-                lastIdx = strIdx - excess + 1;
+            case EntityDecoderState.NumericDecimal: {
+                return this.stateNumericDecimal(str, offset);
+            }
+            case EntityDecoderState.NumericHex: {
+                return this.stateNumericHex(str, offset);
+            }
+            case EntityDecoderState.NamedEntity: {
+                return this.stateNamedEntity(str, offset);
             }
         }
-        return ret + str.slice(lastIdx);
+    };
+    /**
+     * Switches between the numeric decimal and hexadecimal states.
+     *
+     * Equivalent to the `Numeric character reference state` in the HTML spec.
+     *
+     * @param str The string containing the entity (or a continuation of the entity).
+     * @param offset The current offset.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
+    EntityDecoder.prototype.stateNumericStart = function (str, offset) {
+        if (offset >= str.length) {
+            return -1;
+        }
+        if ((str.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+            this.state = EntityDecoderState.NumericHex;
+            this.consumed += 1;
+            return this.stateNumericHex(str, offset + 1);
+        }
+        this.state = EntityDecoderState.NumericDecimal;
+        return this.stateNumericDecimal(str, offset);
+    };
+    EntityDecoder.prototype.addToNumericResult = function (str, start, end, base) {
+        if (start !== end) {
+            var digitCount = end - start;
+            this.result =
+                this.result * Math.pow(base, digitCount) +
+                    parseInt(str.substr(start, digitCount), base);
+            this.consumed += digitCount;
+        }
+    };
+    /**
+     * Parses a hexadecimal numeric entity.
+     *
+     * Equivalent to the `Hexademical character reference state` in the HTML spec.
+     *
+     * @param str The string containing the entity (or a continuation of the entity).
+     * @param offset The current offset.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
+    EntityDecoder.prototype.stateNumericHex = function (str, offset) {
+        var startIdx = offset;
+        while (offset < str.length) {
+            var char = str.charCodeAt(offset);
+            if (isNumber(char) || isHexadecimalCharacter(char)) {
+                offset += 1;
+            }
+            else {
+                this.addToNumericResult(str, startIdx, offset, 16);
+                return this.emitNumericEntity(char, 3);
+            }
+        }
+        this.addToNumericResult(str, startIdx, offset, 16);
+        return -1;
+    };
+    /**
+     * Parses a decimal numeric entity.
+     *
+     * Equivalent to the `Decimal character reference state` in the HTML spec.
+     *
+     * @param str The string containing the entity (or a continuation of the entity).
+     * @param offset The current offset.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
+    EntityDecoder.prototype.stateNumericDecimal = function (str, offset) {
+        var startIdx = offset;
+        while (offset < str.length) {
+            var char = str.charCodeAt(offset);
+            if (isNumber(char)) {
+                offset += 1;
+            }
+            else {
+                this.addToNumericResult(str, startIdx, offset, 10);
+                return this.emitNumericEntity(char, 2);
+            }
+        }
+        this.addToNumericResult(str, startIdx, offset, 10);
+        return -1;
+    };
+    /**
+     * Validate and emit a numeric entity.
+     *
+     * Implements the logic from the `Hexademical character reference start
+     * state` and `Numeric character reference end state` in the HTML spec.
+     *
+     * @param lastCp The last code point of the entity. Used to see if the
+     *               entity was terminated with a semicolon.
+     * @param expectedLength The minimum number of characters that should be
+     *                       consumed. Used to validate that at least one digit
+     *                       was consumed.
+     * @returns The number of characters that were consumed.
+     */
+    EntityDecoder.prototype.emitNumericEntity = function (lastCp, expectedLength) {
+        var _a;
+        // Ensure we consumed at least one digit.
+        if (this.consumed <= expectedLength) {
+            (_a = this.errors) === null || _a === void 0 ? void 0 : _a.absenceOfDigitsInNumericCharacterReference(this.consumed);
+            return 0;
+        }
+        // Figure out if this is a legit end of the entity
+        if (lastCp === CharCodes.SEMI) {
+            this.consumed += 1;
+        }
+        else if (this.decodeMode === DecodingMode.Strict) {
+            return 0;
+        }
+        this.emitCodePoint((0, decode_codepoint_js_1.replaceCodePoint)(this.result), this.consumed);
+        if (this.errors) {
+            if (lastCp !== CharCodes.SEMI) {
+                this.errors.missingSemicolonAfterCharacterReference();
+            }
+            this.errors.validateNumericCharacterReference(this.result);
+        }
+        return this.consumed;
+    };
+    /**
+     * Parses a named entity.
+     *
+     * Equivalent to the `Named character reference state` in the HTML spec.
+     *
+     * @param str The string containing the entity (or a continuation of the entity).
+     * @param offset The current offset.
+     * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+     */
+    EntityDecoder.prototype.stateNamedEntity = function (str, offset) {
+        var decodeTree = this.decodeTree;
+        var current = decodeTree[this.treeIndex];
+        // The mask is the number of bytes of the value, including the current byte.
+        var valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+        for (; offset < str.length; offset++, this.excess++) {
+            var char = str.charCodeAt(offset);
+            this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
+            if (this.treeIndex < 0) {
+                return this.result === 0 ||
+                    // If we are parsing an attribute
+                    (this.decodeMode === DecodingMode.Attribute &&
+                        // We shouldn't have consumed any characters after the entity,
+                        (valueLength === 0 ||
+                            // And there should be no invalid characters.
+                            isEntityInAttributeInvalidEnd(char)))
+                    ? 0
+                    : this.emitNotTerminatedNamedEntity();
+            }
+            current = decodeTree[this.treeIndex];
+            valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+            // If the branch is a value, store it and continue
+            if (valueLength !== 0) {
+                // If the entity is terminated by a semicolon, we are done.
+                if (char === CharCodes.SEMI) {
+                    return this.emitNamedEntityData(this.treeIndex, valueLength, this.consumed + this.excess);
+                }
+                // If we encounter a non-terminated (legacy) entity while parsing strictly, then ignore it.
+                if (this.decodeMode !== DecodingMode.Strict) {
+                    this.result = this.treeIndex;
+                    this.consumed += this.excess;
+                    this.excess = 0;
+                }
+            }
+        }
+        return -1;
+    };
+    /**
+     * Emit a named entity that was not terminated with a semicolon.
+     *
+     * @returns The number of characters consumed.
+     */
+    EntityDecoder.prototype.emitNotTerminatedNamedEntity = function () {
+        var _a;
+        var _b = this, result = _b.result, decodeTree = _b.decodeTree;
+        var valueLength = (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
+        this.emitNamedEntityData(result, valueLength, this.consumed);
+        (_a = this.errors) === null || _a === void 0 ? void 0 : _a.missingSemicolonAfterCharacterReference();
+        return this.consumed;
+    };
+    /**
+     * Emit a named entity.
+     *
+     * @param result The index of the entity in the decode tree.
+     * @param valueLength The number of bytes in the entity.
+     * @param consumed The number of characters consumed.
+     *
+     * @returns The number of characters consumed.
+     */
+    EntityDecoder.prototype.emitNamedEntityData = function (result, valueLength, consumed) {
+        var decodeTree = this.decodeTree;
+        this.emitCodePoint(valueLength === 1
+            ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH
+            : decodeTree[result + 1], consumed);
+        if (valueLength === 3) {
+            // For multi-byte values, we need to emit the second byte.
+            this.emitCodePoint(decodeTree[result + 2], consumed);
+        }
+        return consumed;
+    };
+    /**
+     * Signal to the parser that the end of the input was reached.
+     *
+     * Remaining data will be emitted and relevant errors will be produced.
+     *
+     * @returns The number of characters consumed.
+     */
+    EntityDecoder.prototype.end = function () {
+        var _a;
+        switch (this.state) {
+            case EntityDecoderState.NamedEntity: {
+                // Emit a named entity if we have one.
+                return this.result !== 0 &&
+                    (this.decodeMode !== DecodingMode.Attribute ||
+                        this.result === this.treeIndex)
+                    ? this.emitNotTerminatedNamedEntity()
+                    : 0;
+            }
+            // Otherwise, emit a numeric entity if we have one.
+            case EntityDecoderState.NumericDecimal: {
+                return this.emitNumericEntity(0, 2);
+            }
+            case EntityDecoderState.NumericHex: {
+                return this.emitNumericEntity(0, 3);
+            }
+            case EntityDecoderState.NumericStart: {
+                (_a = this.errors) === null || _a === void 0 ? void 0 : _a.absenceOfDigitsInNumericCharacterReference(this.consumed);
+                return 0;
+            }
+            case EntityDecoderState.EntityStart: {
+                // Return 0 if we have no entity.
+                return 0;
+            }
+        }
+    };
+    return EntityDecoder;
+}());
+exports.EntityDecoder = EntityDecoder;
+/**
+ * Creates a function that decodes entities in a string.
+ *
+ * @param decodeTree The decode tree.
+ * @returns A function that decodes entities in a string.
+ */
+function getDecoder(decodeTree) {
+    var ret = "";
+    var decoder = new EntityDecoder(decodeTree, function (str) { return (ret += (0, decode_codepoint_js_1.fromCodePoint)(str)); });
+    return function decodeWithTrie(str, decodeMode) {
+        var lastIndex = 0;
+        var offset = 0;
+        while ((offset = str.indexOf("&", offset)) >= 0) {
+            ret += str.slice(lastIndex, offset);
+            decoder.startEntity(decodeMode);
+            var len = decoder.write(str, 
+            // Skip the "&"
+            offset + 1);
+            if (len < 0) {
+                lastIndex = offset + decoder.end();
+                break;
+            }
+            lastIndex = offset + len;
+            // If `len` is 0, skip the current `&` and continue.
+            offset = len === 0 ? lastIndex + 1 : lastIndex;
+        }
+        var result = ret + str.slice(lastIndex);
+        // Make sure we don't keep a reference to the final string.
+        ret = "";
+        return result;
     };
 }
+/**
+ * Determines the branch of the current node that is taken given the current
+ * character. This function is used to traverse the trie.
+ *
+ * @param decodeTree The trie.
+ * @param current The current node.
+ * @param nodeIdx The index right after the current node and its value.
+ * @param char The current character.
+ * @returns The index of the next node, or -1 if no branch is taken.
+ */
 function determineBranch(decodeTree, current, nodeIdx, char) {
     var branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
     var jumpOffset = current & BinTrieFlags.JUMP_TABLE;
@@ -2081,37 +952,49 @@ exports.determineBranch = determineBranch;
 var htmlDecoder = getDecoder(decode_data_html_js_1.default);
 var xmlDecoder = getDecoder(decode_data_xml_js_1.default);
 /**
- * Decodes an HTML string, allowing for entities not terminated by a semi-colon.
+ * Decodes an HTML string.
+ *
+ * @param str The string to decode.
+ * @param mode The decoding mode.
+ * @returns The decoded string.
+ */
+function decodeHTML(str, mode) {
+    if (mode === void 0) { mode = DecodingMode.Legacy; }
+    return htmlDecoder(str, mode);
+}
+exports.decodeHTML = decodeHTML;
+/**
+ * Decodes an HTML string in an attribute.
  *
  * @param str The string to decode.
  * @returns The decoded string.
  */
-function decodeHTML(str) {
-    return htmlDecoder(str, false);
+function decodeHTMLAttribute(str) {
+    return htmlDecoder(str, DecodingMode.Attribute);
 }
-exports.decodeHTML = decodeHTML;
+exports.decodeHTMLAttribute = decodeHTMLAttribute;
 /**
- * Decodes an HTML string, requiring all entities to be terminated by a semi-colon.
+ * Decodes an HTML string, requiring all entities to be terminated by a semicolon.
  *
  * @param str The string to decode.
  * @returns The decoded string.
  */
 function decodeHTMLStrict(str) {
-    return htmlDecoder(str, true);
+    return htmlDecoder(str, DecodingMode.Strict);
 }
 exports.decodeHTMLStrict = decodeHTMLStrict;
 /**
- * Decodes an XML string, requiring all entities to be terminated by a semi-colon.
+ * Decodes an XML string, requiring all entities to be terminated by a semicolon.
  *
  * @param str The string to decode.
  * @returns The decoded string.
  */
 function decodeXML(str) {
-    return xmlDecoder(str, true);
+    return xmlDecoder(str, DecodingMode.Strict);
 }
 exports.decodeXML = decodeXML;
 
-},{"./decode_codepoint.js":4,"./generated/decode-data-html.js":7,"./generated/decode-data-xml.js":8}],4:[function(require,module,exports){
+},{"./decode_codepoint.js":63,"./generated/decode-data-html.js":66,"./generated/decode-data-xml.js":67}],63:[function(require,module,exports){
 "use strict";
 // Adapted from https://github.com/mathiasbynens/he/blob/36afe179392226cf1b6ccdb16ebbb7a5a844d93a/src/he.js#L106-L134
 var _a;
@@ -2119,6 +1002,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.replaceCodePoint = exports.fromCodePoint = void 0;
 var decodeMap = new Map([
     [0, 65533],
+    // C1 Unicode control character reference replacements
     [128, 8364],
     [130, 8218],
     [131, 402],
@@ -2147,6 +1031,9 @@ var decodeMap = new Map([
     [158, 382],
     [159, 376],
 ]);
+/**
+ * Polyfill for `String.fromCodePoint`. It is used to create a string from a Unicode code point.
+ */
 exports.fromCodePoint = 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
 (_a = String.fromCodePoint) !== null && _a !== void 0 ? _a : function (codePoint) {
@@ -2159,6 +1046,11 @@ exports.fromCodePoint =
     output += String.fromCharCode(codePoint);
     return output;
 };
+/**
+ * Replace the given code point with a replacement character if it is a
+ * surrogate or is outside the valid range. Otherwise return the code
+ * point unchanged.
+ */
 function replaceCodePoint(codePoint) {
     var _a;
     if ((codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
@@ -2167,12 +1059,19 @@ function replaceCodePoint(codePoint) {
     return (_a = decodeMap.get(codePoint)) !== null && _a !== void 0 ? _a : codePoint;
 }
 exports.replaceCodePoint = replaceCodePoint;
+/**
+ * Replace the code point if relevant, then convert it to a string.
+ *
+ * @deprecated Use `fromCodePoint(replaceCodePoint(codePoint))` instead.
+ * @param codePoint The code point to decode.
+ * @returns The decoded code point.
+ */
 function decodeCodePoint(codePoint) {
     return (0, exports.fromCodePoint)(replaceCodePoint(codePoint));
 }
 exports.default = decodeCodePoint;
 
-},{}],5:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -2235,7 +1134,7 @@ function encodeHTMLTrieRe(regExp, str) {
             }
             next = next.v;
         }
-        // We might have a tree node without a value; skip and use a numeric entitiy.
+        // We might have a tree node without a value; skip and use a numeric entity.
         if (next !== undefined) {
             ret += next;
             lastIdx = i + 1;
@@ -2250,7 +1149,7 @@ function encodeHTMLTrieRe(regExp, str) {
     return ret + str.substr(lastIdx);
 }
 
-},{"./escape.js":6,"./generated/encode-html.js":9}],6:[function(require,module,exports){
+},{"./escape.js":65,"./generated/encode-html.js":68}],65:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.escapeText = exports.escapeAttribute = exports.escapeUTF8 = exports.escape = exports.encodeXML = exports.getCodePoint = exports.xmlReplacer = void 0;
@@ -2314,6 +1213,16 @@ exports.encodeXML = encodeXML;
  * @param data String to escape.
  */
 exports.escape = encodeXML;
+/**
+ * Creates a function that escapes all characters matched by the given regular
+ * expression using the given map of characters to escape to their entities.
+ *
+ * @param regex Regular expression to match characters to escape.
+ * @param map Map of characters to escape to their entities.
+ *
+ * @returns Function that escapes all characters matched by the given regular
+ * expression using the given map of characters to escape to their entities.
+ */
 function getEscaper(regex, map) {
     return function escape(data) {
         var match;
@@ -2323,7 +1232,7 @@ function getEscaper(regex, map) {
             if (lastIdx !== match.index) {
                 result += data.substring(lastIdx, match.index);
             }
-            // We know that this chararcter will be in the map.
+            // We know that this character will be in the map.
             result += map.get(match[0].charCodeAt(0));
             // Every match will be of length 1
             lastIdx = match.index + 1;
@@ -2363,7 +1272,7 @@ exports.escapeText = getEscaper(/[&<>\u00A0]/g, new Map([
     [160, "&nbsp;"],
 ]));
 
-},{}],7:[function(require,module,exports){
+},{}],66:[function(require,module,exports){
 "use strict";
 // Generated using scripts/write-decode-map.ts
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -2373,7 +1282,7 @@ exports.default = new Uint16Array(
     .split("")
     .map(function (c) { return c.charCodeAt(0); }));
 
-},{}],8:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 "use strict";
 // Generated using scripts/write-decode-map.ts
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -2383,7 +1292,7 @@ exports.default = new Uint16Array(
     .split("")
     .map(function (c) { return c.charCodeAt(0); }));
 
-},{}],9:[function(require,module,exports){
+},{}],68:[function(require,module,exports){
 "use strict";
 // Generated using scripts/write-encode-map.ts
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -2396,10 +1305,10 @@ function restoreDiff(arr) {
 // prettier-ignore
 exports.default = new Map(/* #__PURE__ */ restoreDiff([[9, "&Tab;"], [0, "&NewLine;"], [22, "&excl;"], [0, "&quot;"], [0, "&num;"], [0, "&dollar;"], [0, "&percnt;"], [0, "&amp;"], [0, "&apos;"], [0, "&lpar;"], [0, "&rpar;"], [0, "&ast;"], [0, "&plus;"], [0, "&comma;"], [1, "&period;"], [0, "&sol;"], [10, "&colon;"], [0, "&semi;"], [0, { v: "&lt;", n: 8402, o: "&nvlt;" }], [0, { v: "&equals;", n: 8421, o: "&bne;" }], [0, { v: "&gt;", n: 8402, o: "&nvgt;" }], [0, "&quest;"], [0, "&commat;"], [26, "&lbrack;"], [0, "&bsol;"], [0, "&rbrack;"], [0, "&Hat;"], [0, "&lowbar;"], [0, "&DiacriticalGrave;"], [5, { n: 106, o: "&fjlig;" }], [20, "&lbrace;"], [0, "&verbar;"], [0, "&rbrace;"], [34, "&nbsp;"], [0, "&iexcl;"], [0, "&cent;"], [0, "&pound;"], [0, "&curren;"], [0, "&yen;"], [0, "&brvbar;"], [0, "&sect;"], [0, "&die;"], [0, "&copy;"], [0, "&ordf;"], [0, "&laquo;"], [0, "&not;"], [0, "&shy;"], [0, "&circledR;"], [0, "&macr;"], [0, "&deg;"], [0, "&PlusMinus;"], [0, "&sup2;"], [0, "&sup3;"], [0, "&acute;"], [0, "&micro;"], [0, "&para;"], [0, "&centerdot;"], [0, "&cedil;"], [0, "&sup1;"], [0, "&ordm;"], [0, "&raquo;"], [0, "&frac14;"], [0, "&frac12;"], [0, "&frac34;"], [0, "&iquest;"], [0, "&Agrave;"], [0, "&Aacute;"], [0, "&Acirc;"], [0, "&Atilde;"], [0, "&Auml;"], [0, "&angst;"], [0, "&AElig;"], [0, "&Ccedil;"], [0, "&Egrave;"], [0, "&Eacute;"], [0, "&Ecirc;"], [0, "&Euml;"], [0, "&Igrave;"], [0, "&Iacute;"], [0, "&Icirc;"], [0, "&Iuml;"], [0, "&ETH;"], [0, "&Ntilde;"], [0, "&Ograve;"], [0, "&Oacute;"], [0, "&Ocirc;"], [0, "&Otilde;"], [0, "&Ouml;"], [0, "&times;"], [0, "&Oslash;"], [0, "&Ugrave;"], [0, "&Uacute;"], [0, "&Ucirc;"], [0, "&Uuml;"], [0, "&Yacute;"], [0, "&THORN;"], [0, "&szlig;"], [0, "&agrave;"], [0, "&aacute;"], [0, "&acirc;"], [0, "&atilde;"], [0, "&auml;"], [0, "&aring;"], [0, "&aelig;"], [0, "&ccedil;"], [0, "&egrave;"], [0, "&eacute;"], [0, "&ecirc;"], [0, "&euml;"], [0, "&igrave;"], [0, "&iacute;"], [0, "&icirc;"], [0, "&iuml;"], [0, "&eth;"], [0, "&ntilde;"], [0, "&ograve;"], [0, "&oacute;"], [0, "&ocirc;"], [0, "&otilde;"], [0, "&ouml;"], [0, "&div;"], [0, "&oslash;"], [0, "&ugrave;"], [0, "&uacute;"], [0, "&ucirc;"], [0, "&uuml;"], [0, "&yacute;"], [0, "&thorn;"], [0, "&yuml;"], [0, "&Amacr;"], [0, "&amacr;"], [0, "&Abreve;"], [0, "&abreve;"], [0, "&Aogon;"], [0, "&aogon;"], [0, "&Cacute;"], [0, "&cacute;"], [0, "&Ccirc;"], [0, "&ccirc;"], [0, "&Cdot;"], [0, "&cdot;"], [0, "&Ccaron;"], [0, "&ccaron;"], [0, "&Dcaron;"], [0, "&dcaron;"], [0, "&Dstrok;"], [0, "&dstrok;"], [0, "&Emacr;"], [0, "&emacr;"], [2, "&Edot;"], [0, "&edot;"], [0, "&Eogon;"], [0, "&eogon;"], [0, "&Ecaron;"], [0, "&ecaron;"], [0, "&Gcirc;"], [0, "&gcirc;"], [0, "&Gbreve;"], [0, "&gbreve;"], [0, "&Gdot;"], [0, "&gdot;"], [0, "&Gcedil;"], [1, "&Hcirc;"], [0, "&hcirc;"], [0, "&Hstrok;"], [0, "&hstrok;"], [0, "&Itilde;"], [0, "&itilde;"], [0, "&Imacr;"], [0, "&imacr;"], [2, "&Iogon;"], [0, "&iogon;"], [0, "&Idot;"], [0, "&imath;"], [0, "&IJlig;"], [0, "&ijlig;"], [0, "&Jcirc;"], [0, "&jcirc;"], [0, "&Kcedil;"], [0, "&kcedil;"], [0, "&kgreen;"], [0, "&Lacute;"], [0, "&lacute;"], [0, "&Lcedil;"], [0, "&lcedil;"], [0, "&Lcaron;"], [0, "&lcaron;"], [0, "&Lmidot;"], [0, "&lmidot;"], [0, "&Lstrok;"], [0, "&lstrok;"], [0, "&Nacute;"], [0, "&nacute;"], [0, "&Ncedil;"], [0, "&ncedil;"], [0, "&Ncaron;"], [0, "&ncaron;"], [0, "&napos;"], [0, "&ENG;"], [0, "&eng;"], [0, "&Omacr;"], [0, "&omacr;"], [2, "&Odblac;"], [0, "&odblac;"], [0, "&OElig;"], [0, "&oelig;"], [0, "&Racute;"], [0, "&racute;"], [0, "&Rcedil;"], [0, "&rcedil;"], [0, "&Rcaron;"], [0, "&rcaron;"], [0, "&Sacute;"], [0, "&sacute;"], [0, "&Scirc;"], [0, "&scirc;"], [0, "&Scedil;"], [0, "&scedil;"], [0, "&Scaron;"], [0, "&scaron;"], [0, "&Tcedil;"], [0, "&tcedil;"], [0, "&Tcaron;"], [0, "&tcaron;"], [0, "&Tstrok;"], [0, "&tstrok;"], [0, "&Utilde;"], [0, "&utilde;"], [0, "&Umacr;"], [0, "&umacr;"], [0, "&Ubreve;"], [0, "&ubreve;"], [0, "&Uring;"], [0, "&uring;"], [0, "&Udblac;"], [0, "&udblac;"], [0, "&Uogon;"], [0, "&uogon;"], [0, "&Wcirc;"], [0, "&wcirc;"], [0, "&Ycirc;"], [0, "&ycirc;"], [0, "&Yuml;"], [0, "&Zacute;"], [0, "&zacute;"], [0, "&Zdot;"], [0, "&zdot;"], [0, "&Zcaron;"], [0, "&zcaron;"], [19, "&fnof;"], [34, "&imped;"], [63, "&gacute;"], [65, "&jmath;"], [142, "&circ;"], [0, "&caron;"], [16, "&breve;"], [0, "&DiacriticalDot;"], [0, "&ring;"], [0, "&ogon;"], [0, "&DiacriticalTilde;"], [0, "&dblac;"], [51, "&DownBreve;"], [127, "&Alpha;"], [0, "&Beta;"], [0, "&Gamma;"], [0, "&Delta;"], [0, "&Epsilon;"], [0, "&Zeta;"], [0, "&Eta;"], [0, "&Theta;"], [0, "&Iota;"], [0, "&Kappa;"], [0, "&Lambda;"], [0, "&Mu;"], [0, "&Nu;"], [0, "&Xi;"], [0, "&Omicron;"], [0, "&Pi;"], [0, "&Rho;"], [1, "&Sigma;"], [0, "&Tau;"], [0, "&Upsilon;"], [0, "&Phi;"], [0, "&Chi;"], [0, "&Psi;"], [0, "&ohm;"], [7, "&alpha;"], [0, "&beta;"], [0, "&gamma;"], [0, "&delta;"], [0, "&epsi;"], [0, "&zeta;"], [0, "&eta;"], [0, "&theta;"], [0, "&iota;"], [0, "&kappa;"], [0, "&lambda;"], [0, "&mu;"], [0, "&nu;"], [0, "&xi;"], [0, "&omicron;"], [0, "&pi;"], [0, "&rho;"], [0, "&sigmaf;"], [0, "&sigma;"], [0, "&tau;"], [0, "&upsi;"], [0, "&phi;"], [0, "&chi;"], [0, "&psi;"], [0, "&omega;"], [7, "&thetasym;"], [0, "&Upsi;"], [2, "&phiv;"], [0, "&piv;"], [5, "&Gammad;"], [0, "&digamma;"], [18, "&kappav;"], [0, "&rhov;"], [3, "&epsiv;"], [0, "&backepsilon;"], [10, "&IOcy;"], [0, "&DJcy;"], [0, "&GJcy;"], [0, "&Jukcy;"], [0, "&DScy;"], [0, "&Iukcy;"], [0, "&YIcy;"], [0, "&Jsercy;"], [0, "&LJcy;"], [0, "&NJcy;"], [0, "&TSHcy;"], [0, "&KJcy;"], [1, "&Ubrcy;"], [0, "&DZcy;"], [0, "&Acy;"], [0, "&Bcy;"], [0, "&Vcy;"], [0, "&Gcy;"], [0, "&Dcy;"], [0, "&IEcy;"], [0, "&ZHcy;"], [0, "&Zcy;"], [0, "&Icy;"], [0, "&Jcy;"], [0, "&Kcy;"], [0, "&Lcy;"], [0, "&Mcy;"], [0, "&Ncy;"], [0, "&Ocy;"], [0, "&Pcy;"], [0, "&Rcy;"], [0, "&Scy;"], [0, "&Tcy;"], [0, "&Ucy;"], [0, "&Fcy;"], [0, "&KHcy;"], [0, "&TScy;"], [0, "&CHcy;"], [0, "&SHcy;"], [0, "&SHCHcy;"], [0, "&HARDcy;"], [0, "&Ycy;"], [0, "&SOFTcy;"], [0, "&Ecy;"], [0, "&YUcy;"], [0, "&YAcy;"], [0, "&acy;"], [0, "&bcy;"], [0, "&vcy;"], [0, "&gcy;"], [0, "&dcy;"], [0, "&iecy;"], [0, "&zhcy;"], [0, "&zcy;"], [0, "&icy;"], [0, "&jcy;"], [0, "&kcy;"], [0, "&lcy;"], [0, "&mcy;"], [0, "&ncy;"], [0, "&ocy;"], [0, "&pcy;"], [0, "&rcy;"], [0, "&scy;"], [0, "&tcy;"], [0, "&ucy;"], [0, "&fcy;"], [0, "&khcy;"], [0, "&tscy;"], [0, "&chcy;"], [0, "&shcy;"], [0, "&shchcy;"], [0, "&hardcy;"], [0, "&ycy;"], [0, "&softcy;"], [0, "&ecy;"], [0, "&yucy;"], [0, "&yacy;"], [1, "&iocy;"], [0, "&djcy;"], [0, "&gjcy;"], [0, "&jukcy;"], [0, "&dscy;"], [0, "&iukcy;"], [0, "&yicy;"], [0, "&jsercy;"], [0, "&ljcy;"], [0, "&njcy;"], [0, "&tshcy;"], [0, "&kjcy;"], [1, "&ubrcy;"], [0, "&dzcy;"], [7074, "&ensp;"], [0, "&emsp;"], [0, "&emsp13;"], [0, "&emsp14;"], [1, "&numsp;"], [0, "&puncsp;"], [0, "&ThinSpace;"], [0, "&hairsp;"], [0, "&NegativeMediumSpace;"], [0, "&zwnj;"], [0, "&zwj;"], [0, "&lrm;"], [0, "&rlm;"], [0, "&dash;"], [2, "&ndash;"], [0, "&mdash;"], [0, "&horbar;"], [0, "&Verbar;"], [1, "&lsquo;"], [0, "&CloseCurlyQuote;"], [0, "&lsquor;"], [1, "&ldquo;"], [0, "&CloseCurlyDoubleQuote;"], [0, "&bdquo;"], [1, "&dagger;"], [0, "&Dagger;"], [0, "&bull;"], [2, "&nldr;"], [0, "&hellip;"], [9, "&permil;"], [0, "&pertenk;"], [0, "&prime;"], [0, "&Prime;"], [0, "&tprime;"], [0, "&backprime;"], [3, "&lsaquo;"], [0, "&rsaquo;"], [3, "&oline;"], [2, "&caret;"], [1, "&hybull;"], [0, "&frasl;"], [10, "&bsemi;"], [7, "&qprime;"], [7, { v: "&MediumSpace;", n: 8202, o: "&ThickSpace;" }], [0, "&NoBreak;"], [0, "&af;"], [0, "&InvisibleTimes;"], [0, "&ic;"], [72, "&euro;"], [46, "&tdot;"], [0, "&DotDot;"], [37, "&complexes;"], [2, "&incare;"], [4, "&gscr;"], [0, "&hamilt;"], [0, "&Hfr;"], [0, "&Hopf;"], [0, "&planckh;"], [0, "&hbar;"], [0, "&imagline;"], [0, "&Ifr;"], [0, "&lagran;"], [0, "&ell;"], [1, "&naturals;"], [0, "&numero;"], [0, "&copysr;"], [0, "&weierp;"], [0, "&Popf;"], [0, "&Qopf;"], [0, "&realine;"], [0, "&real;"], [0, "&reals;"], [0, "&rx;"], [3, "&trade;"], [1, "&integers;"], [2, "&mho;"], [0, "&zeetrf;"], [0, "&iiota;"], [2, "&bernou;"], [0, "&Cayleys;"], [1, "&escr;"], [0, "&Escr;"], [0, "&Fouriertrf;"], [1, "&Mellintrf;"], [0, "&order;"], [0, "&alefsym;"], [0, "&beth;"], [0, "&gimel;"], [0, "&daleth;"], [12, "&CapitalDifferentialD;"], [0, "&dd;"], [0, "&ee;"], [0, "&ii;"], [10, "&frac13;"], [0, "&frac23;"], [0, "&frac15;"], [0, "&frac25;"], [0, "&frac35;"], [0, "&frac45;"], [0, "&frac16;"], [0, "&frac56;"], [0, "&frac18;"], [0, "&frac38;"], [0, "&frac58;"], [0, "&frac78;"], [49, "&larr;"], [0, "&ShortUpArrow;"], [0, "&rarr;"], [0, "&darr;"], [0, "&harr;"], [0, "&updownarrow;"], [0, "&nwarr;"], [0, "&nearr;"], [0, "&LowerRightArrow;"], [0, "&LowerLeftArrow;"], [0, "&nlarr;"], [0, "&nrarr;"], [1, { v: "&rarrw;", n: 824, o: "&nrarrw;" }], [0, "&Larr;"], [0, "&Uarr;"], [0, "&Rarr;"], [0, "&Darr;"], [0, "&larrtl;"], [0, "&rarrtl;"], [0, "&LeftTeeArrow;"], [0, "&mapstoup;"], [0, "&map;"], [0, "&DownTeeArrow;"], [1, "&hookleftarrow;"], [0, "&hookrightarrow;"], [0, "&larrlp;"], [0, "&looparrowright;"], [0, "&harrw;"], [0, "&nharr;"], [1, "&lsh;"], [0, "&rsh;"], [0, "&ldsh;"], [0, "&rdsh;"], [1, "&crarr;"], [0, "&cularr;"], [0, "&curarr;"], [2, "&circlearrowleft;"], [0, "&circlearrowright;"], [0, "&leftharpoonup;"], [0, "&DownLeftVector;"], [0, "&RightUpVector;"], [0, "&LeftUpVector;"], [0, "&rharu;"], [0, "&DownRightVector;"], [0, "&dharr;"], [0, "&dharl;"], [0, "&RightArrowLeftArrow;"], [0, "&udarr;"], [0, "&LeftArrowRightArrow;"], [0, "&leftleftarrows;"], [0, "&upuparrows;"], [0, "&rightrightarrows;"], [0, "&ddarr;"], [0, "&leftrightharpoons;"], [0, "&Equilibrium;"], [0, "&nlArr;"], [0, "&nhArr;"], [0, "&nrArr;"], [0, "&DoubleLeftArrow;"], [0, "&DoubleUpArrow;"], [0, "&DoubleRightArrow;"], [0, "&dArr;"], [0, "&DoubleLeftRightArrow;"], [0, "&DoubleUpDownArrow;"], [0, "&nwArr;"], [0, "&neArr;"], [0, "&seArr;"], [0, "&swArr;"], [0, "&lAarr;"], [0, "&rAarr;"], [1, "&zigrarr;"], [6, "&larrb;"], [0, "&rarrb;"], [15, "&DownArrowUpArrow;"], [7, "&loarr;"], [0, "&roarr;"], [0, "&hoarr;"], [0, "&forall;"], [0, "&comp;"], [0, { v: "&part;", n: 824, o: "&npart;" }], [0, "&exist;"], [0, "&nexist;"], [0, "&empty;"], [1, "&Del;"], [0, "&Element;"], [0, "&NotElement;"], [1, "&ni;"], [0, "&notni;"], [2, "&prod;"], [0, "&coprod;"], [0, "&sum;"], [0, "&minus;"], [0, "&MinusPlus;"], [0, "&dotplus;"], [1, "&Backslash;"], [0, "&lowast;"], [0, "&compfn;"], [1, "&radic;"], [2, "&prop;"], [0, "&infin;"], [0, "&angrt;"], [0, { v: "&ang;", n: 8402, o: "&nang;" }], [0, "&angmsd;"], [0, "&angsph;"], [0, "&mid;"], [0, "&nmid;"], [0, "&DoubleVerticalBar;"], [0, "&NotDoubleVerticalBar;"], [0, "&and;"], [0, "&or;"], [0, { v: "&cap;", n: 65024, o: "&caps;" }], [0, { v: "&cup;", n: 65024, o: "&cups;" }], [0, "&int;"], [0, "&Int;"], [0, "&iiint;"], [0, "&conint;"], [0, "&Conint;"], [0, "&Cconint;"], [0, "&cwint;"], [0, "&ClockwiseContourIntegral;"], [0, "&awconint;"], [0, "&there4;"], [0, "&becaus;"], [0, "&ratio;"], [0, "&Colon;"], [0, "&dotminus;"], [1, "&mDDot;"], [0, "&homtht;"], [0, { v: "&sim;", n: 8402, o: "&nvsim;" }], [0, { v: "&backsim;", n: 817, o: "&race;" }], [0, { v: "&ac;", n: 819, o: "&acE;" }], [0, "&acd;"], [0, "&VerticalTilde;"], [0, "&NotTilde;"], [0, { v: "&eqsim;", n: 824, o: "&nesim;" }], [0, "&sime;"], [0, "&NotTildeEqual;"], [0, "&cong;"], [0, "&simne;"], [0, "&ncong;"], [0, "&ap;"], [0, "&nap;"], [0, "&ape;"], [0, { v: "&apid;", n: 824, o: "&napid;" }], [0, "&backcong;"], [0, { v: "&asympeq;", n: 8402, o: "&nvap;" }], [0, { v: "&bump;", n: 824, o: "&nbump;" }], [0, { v: "&bumpe;", n: 824, o: "&nbumpe;" }], [0, { v: "&doteq;", n: 824, o: "&nedot;" }], [0, "&doteqdot;"], [0, "&efDot;"], [0, "&erDot;"], [0, "&Assign;"], [0, "&ecolon;"], [0, "&ecir;"], [0, "&circeq;"], [1, "&wedgeq;"], [0, "&veeeq;"], [1, "&triangleq;"], [2, "&equest;"], [0, "&ne;"], [0, { v: "&Congruent;", n: 8421, o: "&bnequiv;" }], [0, "&nequiv;"], [1, { v: "&le;", n: 8402, o: "&nvle;" }], [0, { v: "&ge;", n: 8402, o: "&nvge;" }], [0, { v: "&lE;", n: 824, o: "&nlE;" }], [0, { v: "&gE;", n: 824, o: "&ngE;" }], [0, { v: "&lnE;", n: 65024, o: "&lvertneqq;" }], [0, { v: "&gnE;", n: 65024, o: "&gvertneqq;" }], [0, { v: "&ll;", n: new Map(/* #__PURE__ */ restoreDiff([[824, "&nLtv;"], [7577, "&nLt;"]])) }], [0, { v: "&gg;", n: new Map(/* #__PURE__ */ restoreDiff([[824, "&nGtv;"], [7577, "&nGt;"]])) }], [0, "&between;"], [0, "&NotCupCap;"], [0, "&nless;"], [0, "&ngt;"], [0, "&nle;"], [0, "&nge;"], [0, "&lesssim;"], [0, "&GreaterTilde;"], [0, "&nlsim;"], [0, "&ngsim;"], [0, "&LessGreater;"], [0, "&gl;"], [0, "&NotLessGreater;"], [0, "&NotGreaterLess;"], [0, "&pr;"], [0, "&sc;"], [0, "&prcue;"], [0, "&sccue;"], [0, "&PrecedesTilde;"], [0, { v: "&scsim;", n: 824, o: "&NotSucceedsTilde;" }], [0, "&NotPrecedes;"], [0, "&NotSucceeds;"], [0, { v: "&sub;", n: 8402, o: "&NotSubset;" }], [0, { v: "&sup;", n: 8402, o: "&NotSuperset;" }], [0, "&nsub;"], [0, "&nsup;"], [0, "&sube;"], [0, "&supe;"], [0, "&NotSubsetEqual;"], [0, "&NotSupersetEqual;"], [0, { v: "&subne;", n: 65024, o: "&varsubsetneq;" }], [0, { v: "&supne;", n: 65024, o: "&varsupsetneq;" }], [1, "&cupdot;"], [0, "&UnionPlus;"], [0, { v: "&sqsub;", n: 824, o: "&NotSquareSubset;" }], [0, { v: "&sqsup;", n: 824, o: "&NotSquareSuperset;" }], [0, "&sqsube;"], [0, "&sqsupe;"], [0, { v: "&sqcap;", n: 65024, o: "&sqcaps;" }], [0, { v: "&sqcup;", n: 65024, o: "&sqcups;" }], [0, "&CirclePlus;"], [0, "&CircleMinus;"], [0, "&CircleTimes;"], [0, "&osol;"], [0, "&CircleDot;"], [0, "&circledcirc;"], [0, "&circledast;"], [1, "&circleddash;"], [0, "&boxplus;"], [0, "&boxminus;"], [0, "&boxtimes;"], [0, "&dotsquare;"], [0, "&RightTee;"], [0, "&dashv;"], [0, "&DownTee;"], [0, "&bot;"], [1, "&models;"], [0, "&DoubleRightTee;"], [0, "&Vdash;"], [0, "&Vvdash;"], [0, "&VDash;"], [0, "&nvdash;"], [0, "&nvDash;"], [0, "&nVdash;"], [0, "&nVDash;"], [0, "&prurel;"], [1, "&LeftTriangle;"], [0, "&RightTriangle;"], [0, { v: "&LeftTriangleEqual;", n: 8402, o: "&nvltrie;" }], [0, { v: "&RightTriangleEqual;", n: 8402, o: "&nvrtrie;" }], [0, "&origof;"], [0, "&imof;"], [0, "&multimap;"], [0, "&hercon;"], [0, "&intcal;"], [0, "&veebar;"], [1, "&barvee;"], [0, "&angrtvb;"], [0, "&lrtri;"], [0, "&bigwedge;"], [0, "&bigvee;"], [0, "&bigcap;"], [0, "&bigcup;"], [0, "&diam;"], [0, "&sdot;"], [0, "&sstarf;"], [0, "&divideontimes;"], [0, "&bowtie;"], [0, "&ltimes;"], [0, "&rtimes;"], [0, "&leftthreetimes;"], [0, "&rightthreetimes;"], [0, "&backsimeq;"], [0, "&curlyvee;"], [0, "&curlywedge;"], [0, "&Sub;"], [0, "&Sup;"], [0, "&Cap;"], [0, "&Cup;"], [0, "&fork;"], [0, "&epar;"], [0, "&lessdot;"], [0, "&gtdot;"], [0, { v: "&Ll;", n: 824, o: "&nLl;" }], [0, { v: "&Gg;", n: 824, o: "&nGg;" }], [0, { v: "&leg;", n: 65024, o: "&lesg;" }], [0, { v: "&gel;", n: 65024, o: "&gesl;" }], [2, "&cuepr;"], [0, "&cuesc;"], [0, "&NotPrecedesSlantEqual;"], [0, "&NotSucceedsSlantEqual;"], [0, "&NotSquareSubsetEqual;"], [0, "&NotSquareSupersetEqual;"], [2, "&lnsim;"], [0, "&gnsim;"], [0, "&precnsim;"], [0, "&scnsim;"], [0, "&nltri;"], [0, "&NotRightTriangle;"], [0, "&nltrie;"], [0, "&NotRightTriangleEqual;"], [0, "&vellip;"], [0, "&ctdot;"], [0, "&utdot;"], [0, "&dtdot;"], [0, "&disin;"], [0, "&isinsv;"], [0, "&isins;"], [0, { v: "&isindot;", n: 824, o: "&notindot;" }], [0, "&notinvc;"], [0, "&notinvb;"], [1, { v: "&isinE;", n: 824, o: "&notinE;" }], [0, "&nisd;"], [0, "&xnis;"], [0, "&nis;"], [0, "&notnivc;"], [0, "&notnivb;"], [6, "&barwed;"], [0, "&Barwed;"], [1, "&lceil;"], [0, "&rceil;"], [0, "&LeftFloor;"], [0, "&rfloor;"], [0, "&drcrop;"], [0, "&dlcrop;"], [0, "&urcrop;"], [0, "&ulcrop;"], [0, "&bnot;"], [1, "&profline;"], [0, "&profsurf;"], [1, "&telrec;"], [0, "&target;"], [5, "&ulcorn;"], [0, "&urcorn;"], [0, "&dlcorn;"], [0, "&drcorn;"], [2, "&frown;"], [0, "&smile;"], [9, "&cylcty;"], [0, "&profalar;"], [7, "&topbot;"], [6, "&ovbar;"], [1, "&solbar;"], [60, "&angzarr;"], [51, "&lmoustache;"], [0, "&rmoustache;"], [2, "&OverBracket;"], [0, "&bbrk;"], [0, "&bbrktbrk;"], [37, "&OverParenthesis;"], [0, "&UnderParenthesis;"], [0, "&OverBrace;"], [0, "&UnderBrace;"], [2, "&trpezium;"], [4, "&elinters;"], [59, "&blank;"], [164, "&circledS;"], [55, "&boxh;"], [1, "&boxv;"], [9, "&boxdr;"], [3, "&boxdl;"], [3, "&boxur;"], [3, "&boxul;"], [3, "&boxvr;"], [7, "&boxvl;"], [7, "&boxhd;"], [7, "&boxhu;"], [7, "&boxvh;"], [19, "&boxH;"], [0, "&boxV;"], [0, "&boxdR;"], [0, "&boxDr;"], [0, "&boxDR;"], [0, "&boxdL;"], [0, "&boxDl;"], [0, "&boxDL;"], [0, "&boxuR;"], [0, "&boxUr;"], [0, "&boxUR;"], [0, "&boxuL;"], [0, "&boxUl;"], [0, "&boxUL;"], [0, "&boxvR;"], [0, "&boxVr;"], [0, "&boxVR;"], [0, "&boxvL;"], [0, "&boxVl;"], [0, "&boxVL;"], [0, "&boxHd;"], [0, "&boxhD;"], [0, "&boxHD;"], [0, "&boxHu;"], [0, "&boxhU;"], [0, "&boxHU;"], [0, "&boxvH;"], [0, "&boxVh;"], [0, "&boxVH;"], [19, "&uhblk;"], [3, "&lhblk;"], [3, "&block;"], [8, "&blk14;"], [0, "&blk12;"], [0, "&blk34;"], [13, "&square;"], [8, "&blacksquare;"], [0, "&EmptyVerySmallSquare;"], [1, "&rect;"], [0, "&marker;"], [2, "&fltns;"], [1, "&bigtriangleup;"], [0, "&blacktriangle;"], [0, "&triangle;"], [2, "&blacktriangleright;"], [0, "&rtri;"], [3, "&bigtriangledown;"], [0, "&blacktriangledown;"], [0, "&dtri;"], [2, "&blacktriangleleft;"], [0, "&ltri;"], [6, "&loz;"], [0, "&cir;"], [32, "&tridot;"], [2, "&bigcirc;"], [8, "&ultri;"], [0, "&urtri;"], [0, "&lltri;"], [0, "&EmptySmallSquare;"], [0, "&FilledSmallSquare;"], [8, "&bigstar;"], [0, "&star;"], [7, "&phone;"], [49, "&female;"], [1, "&male;"], [29, "&spades;"], [2, "&clubs;"], [1, "&hearts;"], [0, "&diamondsuit;"], [3, "&sung;"], [2, "&flat;"], [0, "&natural;"], [0, "&sharp;"], [163, "&check;"], [3, "&cross;"], [8, "&malt;"], [21, "&sext;"], [33, "&VerticalSeparator;"], [25, "&lbbrk;"], [0, "&rbbrk;"], [84, "&bsolhsub;"], [0, "&suphsol;"], [28, "&LeftDoubleBracket;"], [0, "&RightDoubleBracket;"], [0, "&lang;"], [0, "&rang;"], [0, "&Lang;"], [0, "&Rang;"], [0, "&loang;"], [0, "&roang;"], [7, "&longleftarrow;"], [0, "&longrightarrow;"], [0, "&longleftrightarrow;"], [0, "&DoubleLongLeftArrow;"], [0, "&DoubleLongRightArrow;"], [0, "&DoubleLongLeftRightArrow;"], [1, "&longmapsto;"], [2, "&dzigrarr;"], [258, "&nvlArr;"], [0, "&nvrArr;"], [0, "&nvHarr;"], [0, "&Map;"], [6, "&lbarr;"], [0, "&bkarow;"], [0, "&lBarr;"], [0, "&dbkarow;"], [0, "&drbkarow;"], [0, "&DDotrahd;"], [0, "&UpArrowBar;"], [0, "&DownArrowBar;"], [2, "&Rarrtl;"], [2, "&latail;"], [0, "&ratail;"], [0, "&lAtail;"], [0, "&rAtail;"], [0, "&larrfs;"], [0, "&rarrfs;"], [0, "&larrbfs;"], [0, "&rarrbfs;"], [2, "&nwarhk;"], [0, "&nearhk;"], [0, "&hksearow;"], [0, "&hkswarow;"], [0, "&nwnear;"], [0, "&nesear;"], [0, "&seswar;"], [0, "&swnwar;"], [8, { v: "&rarrc;", n: 824, o: "&nrarrc;" }], [1, "&cudarrr;"], [0, "&ldca;"], [0, "&rdca;"], [0, "&cudarrl;"], [0, "&larrpl;"], [2, "&curarrm;"], [0, "&cularrp;"], [7, "&rarrpl;"], [2, "&harrcir;"], [0, "&Uarrocir;"], [0, "&lurdshar;"], [0, "&ldrushar;"], [2, "&LeftRightVector;"], [0, "&RightUpDownVector;"], [0, "&DownLeftRightVector;"], [0, "&LeftUpDownVector;"], [0, "&LeftVectorBar;"], [0, "&RightVectorBar;"], [0, "&RightUpVectorBar;"], [0, "&RightDownVectorBar;"], [0, "&DownLeftVectorBar;"], [0, "&DownRightVectorBar;"], [0, "&LeftUpVectorBar;"], [0, "&LeftDownVectorBar;"], [0, "&LeftTeeVector;"], [0, "&RightTeeVector;"], [0, "&RightUpTeeVector;"], [0, "&RightDownTeeVector;"], [0, "&DownLeftTeeVector;"], [0, "&DownRightTeeVector;"], [0, "&LeftUpTeeVector;"], [0, "&LeftDownTeeVector;"], [0, "&lHar;"], [0, "&uHar;"], [0, "&rHar;"], [0, "&dHar;"], [0, "&luruhar;"], [0, "&ldrdhar;"], [0, "&ruluhar;"], [0, "&rdldhar;"], [0, "&lharul;"], [0, "&llhard;"], [0, "&rharul;"], [0, "&lrhard;"], [0, "&udhar;"], [0, "&duhar;"], [0, "&RoundImplies;"], [0, "&erarr;"], [0, "&simrarr;"], [0, "&larrsim;"], [0, "&rarrsim;"], [0, "&rarrap;"], [0, "&ltlarr;"], [1, "&gtrarr;"], [0, "&subrarr;"], [1, "&suplarr;"], [0, "&lfisht;"], [0, "&rfisht;"], [0, "&ufisht;"], [0, "&dfisht;"], [5, "&lopar;"], [0, "&ropar;"], [4, "&lbrke;"], [0, "&rbrke;"], [0, "&lbrkslu;"], [0, "&rbrksld;"], [0, "&lbrksld;"], [0, "&rbrkslu;"], [0, "&langd;"], [0, "&rangd;"], [0, "&lparlt;"], [0, "&rpargt;"], [0, "&gtlPar;"], [0, "&ltrPar;"], [3, "&vzigzag;"], [1, "&vangrt;"], [0, "&angrtvbd;"], [6, "&ange;"], [0, "&range;"], [0, "&dwangle;"], [0, "&uwangle;"], [0, "&angmsdaa;"], [0, "&angmsdab;"], [0, "&angmsdac;"], [0, "&angmsdad;"], [0, "&angmsdae;"], [0, "&angmsdaf;"], [0, "&angmsdag;"], [0, "&angmsdah;"], [0, "&bemptyv;"], [0, "&demptyv;"], [0, "&cemptyv;"], [0, "&raemptyv;"], [0, "&laemptyv;"], [0, "&ohbar;"], [0, "&omid;"], [0, "&opar;"], [1, "&operp;"], [1, "&olcross;"], [0, "&odsold;"], [1, "&olcir;"], [0, "&ofcir;"], [0, "&olt;"], [0, "&ogt;"], [0, "&cirscir;"], [0, "&cirE;"], [0, "&solb;"], [0, "&bsolb;"], [3, "&boxbox;"], [3, "&trisb;"], [0, "&rtriltri;"], [0, { v: "&LeftTriangleBar;", n: 824, o: "&NotLeftTriangleBar;" }], [0, { v: "&RightTriangleBar;", n: 824, o: "&NotRightTriangleBar;" }], [11, "&iinfin;"], [0, "&infintie;"], [0, "&nvinfin;"], [4, "&eparsl;"], [0, "&smeparsl;"], [0, "&eqvparsl;"], [5, "&blacklozenge;"], [8, "&RuleDelayed;"], [1, "&dsol;"], [9, "&bigodot;"], [0, "&bigoplus;"], [0, "&bigotimes;"], [1, "&biguplus;"], [1, "&bigsqcup;"], [5, "&iiiint;"], [0, "&fpartint;"], [2, "&cirfnint;"], [0, "&awint;"], [0, "&rppolint;"], [0, "&scpolint;"], [0, "&npolint;"], [0, "&pointint;"], [0, "&quatint;"], [0, "&intlarhk;"], [10, "&pluscir;"], [0, "&plusacir;"], [0, "&simplus;"], [0, "&plusdu;"], [0, "&plussim;"], [0, "&plustwo;"], [1, "&mcomma;"], [0, "&minusdu;"], [2, "&loplus;"], [0, "&roplus;"], [0, "&Cross;"], [0, "&timesd;"], [0, "&timesbar;"], [1, "&smashp;"], [0, "&lotimes;"], [0, "&rotimes;"], [0, "&otimesas;"], [0, "&Otimes;"], [0, "&odiv;"], [0, "&triplus;"], [0, "&triminus;"], [0, "&tritime;"], [0, "&intprod;"], [2, "&amalg;"], [0, "&capdot;"], [1, "&ncup;"], [0, "&ncap;"], [0, "&capand;"], [0, "&cupor;"], [0, "&cupcap;"], [0, "&capcup;"], [0, "&cupbrcap;"], [0, "&capbrcup;"], [0, "&cupcup;"], [0, "&capcap;"], [0, "&ccups;"], [0, "&ccaps;"], [2, "&ccupssm;"], [2, "&And;"], [0, "&Or;"], [0, "&andand;"], [0, "&oror;"], [0, "&orslope;"], [0, "&andslope;"], [1, "&andv;"], [0, "&orv;"], [0, "&andd;"], [0, "&ord;"], [1, "&wedbar;"], [6, "&sdote;"], [3, "&simdot;"], [2, { v: "&congdot;", n: 824, o: "&ncongdot;" }], [0, "&easter;"], [0, "&apacir;"], [0, { v: "&apE;", n: 824, o: "&napE;" }], [0, "&eplus;"], [0, "&pluse;"], [0, "&Esim;"], [0, "&Colone;"], [0, "&Equal;"], [1, "&ddotseq;"], [0, "&equivDD;"], [0, "&ltcir;"], [0, "&gtcir;"], [0, "&ltquest;"], [0, "&gtquest;"], [0, { v: "&leqslant;", n: 824, o: "&nleqslant;" }], [0, { v: "&geqslant;", n: 824, o: "&ngeqslant;" }], [0, "&lesdot;"], [0, "&gesdot;"], [0, "&lesdoto;"], [0, "&gesdoto;"], [0, "&lesdotor;"], [0, "&gesdotol;"], [0, "&lap;"], [0, "&gap;"], [0, "&lne;"], [0, "&gne;"], [0, "&lnap;"], [0, "&gnap;"], [0, "&lEg;"], [0, "&gEl;"], [0, "&lsime;"], [0, "&gsime;"], [0, "&lsimg;"], [0, "&gsiml;"], [0, "&lgE;"], [0, "&glE;"], [0, "&lesges;"], [0, "&gesles;"], [0, "&els;"], [0, "&egs;"], [0, "&elsdot;"], [0, "&egsdot;"], [0, "&el;"], [0, "&eg;"], [2, "&siml;"], [0, "&simg;"], [0, "&simlE;"], [0, "&simgE;"], [0, { v: "&LessLess;", n: 824, o: "&NotNestedLessLess;" }], [0, { v: "&GreaterGreater;", n: 824, o: "&NotNestedGreaterGreater;" }], [1, "&glj;"], [0, "&gla;"], [0, "&ltcc;"], [0, "&gtcc;"], [0, "&lescc;"], [0, "&gescc;"], [0, "&smt;"], [0, "&lat;"], [0, { v: "&smte;", n: 65024, o: "&smtes;" }], [0, { v: "&late;", n: 65024, o: "&lates;" }], [0, "&bumpE;"], [0, { v: "&PrecedesEqual;", n: 824, o: "&NotPrecedesEqual;" }], [0, { v: "&sce;", n: 824, o: "&NotSucceedsEqual;" }], [2, "&prE;"], [0, "&scE;"], [0, "&precneqq;"], [0, "&scnE;"], [0, "&prap;"], [0, "&scap;"], [0, "&precnapprox;"], [0, "&scnap;"], [0, "&Pr;"], [0, "&Sc;"], [0, "&subdot;"], [0, "&supdot;"], [0, "&subplus;"], [0, "&supplus;"], [0, "&submult;"], [0, "&supmult;"], [0, "&subedot;"], [0, "&supedot;"], [0, { v: "&subE;", n: 824, o: "&nsubE;" }], [0, { v: "&supE;", n: 824, o: "&nsupE;" }], [0, "&subsim;"], [0, "&supsim;"], [2, { v: "&subnE;", n: 65024, o: "&varsubsetneqq;" }], [0, { v: "&supnE;", n: 65024, o: "&varsupsetneqq;" }], [2, "&csub;"], [0, "&csup;"], [0, "&csube;"], [0, "&csupe;"], [0, "&subsup;"], [0, "&supsub;"], [0, "&subsub;"], [0, "&supsup;"], [0, "&suphsub;"], [0, "&supdsub;"], [0, "&forkv;"], [0, "&topfork;"], [0, "&mlcp;"], [8, "&Dashv;"], [1, "&Vdashl;"], [0, "&Barv;"], [0, "&vBar;"], [0, "&vBarv;"], [1, "&Vbar;"], [0, "&Not;"], [0, "&bNot;"], [0, "&rnmid;"], [0, "&cirmid;"], [0, "&midcir;"], [0, "&topcir;"], [0, "&nhpar;"], [0, "&parsim;"], [9, { v: "&parsl;", n: 8421, o: "&nparsl;" }], [44343, { n: new Map(/* #__PURE__ */ restoreDiff([[56476, "&Ascr;"], [1, "&Cscr;"], [0, "&Dscr;"], [2, "&Gscr;"], [2, "&Jscr;"], [0, "&Kscr;"], [2, "&Nscr;"], [0, "&Oscr;"], [0, "&Pscr;"], [0, "&Qscr;"], [1, "&Sscr;"], [0, "&Tscr;"], [0, "&Uscr;"], [0, "&Vscr;"], [0, "&Wscr;"], [0, "&Xscr;"], [0, "&Yscr;"], [0, "&Zscr;"], [0, "&ascr;"], [0, "&bscr;"], [0, "&cscr;"], [0, "&dscr;"], [1, "&fscr;"], [1, "&hscr;"], [0, "&iscr;"], [0, "&jscr;"], [0, "&kscr;"], [0, "&lscr;"], [0, "&mscr;"], [0, "&nscr;"], [1, "&pscr;"], [0, "&qscr;"], [0, "&rscr;"], [0, "&sscr;"], [0, "&tscr;"], [0, "&uscr;"], [0, "&vscr;"], [0, "&wscr;"], [0, "&xscr;"], [0, "&yscr;"], [0, "&zscr;"], [52, "&Afr;"], [0, "&Bfr;"], [1, "&Dfr;"], [0, "&Efr;"], [0, "&Ffr;"], [0, "&Gfr;"], [2, "&Jfr;"], [0, "&Kfr;"], [0, "&Lfr;"], [0, "&Mfr;"], [0, "&Nfr;"], [0, "&Ofr;"], [0, "&Pfr;"], [0, "&Qfr;"], [1, "&Sfr;"], [0, "&Tfr;"], [0, "&Ufr;"], [0, "&Vfr;"], [0, "&Wfr;"], [0, "&Xfr;"], [0, "&Yfr;"], [1, "&afr;"], [0, "&bfr;"], [0, "&cfr;"], [0, "&dfr;"], [0, "&efr;"], [0, "&ffr;"], [0, "&gfr;"], [0, "&hfr;"], [0, "&ifr;"], [0, "&jfr;"], [0, "&kfr;"], [0, "&lfr;"], [0, "&mfr;"], [0, "&nfr;"], [0, "&ofr;"], [0, "&pfr;"], [0, "&qfr;"], [0, "&rfr;"], [0, "&sfr;"], [0, "&tfr;"], [0, "&ufr;"], [0, "&vfr;"], [0, "&wfr;"], [0, "&xfr;"], [0, "&yfr;"], [0, "&zfr;"], [0, "&Aopf;"], [0, "&Bopf;"], [1, "&Dopf;"], [0, "&Eopf;"], [0, "&Fopf;"], [0, "&Gopf;"], [1, "&Iopf;"], [0, "&Jopf;"], [0, "&Kopf;"], [0, "&Lopf;"], [0, "&Mopf;"], [1, "&Oopf;"], [3, "&Sopf;"], [0, "&Topf;"], [0, "&Uopf;"], [0, "&Vopf;"], [0, "&Wopf;"], [0, "&Xopf;"], [0, "&Yopf;"], [1, "&aopf;"], [0, "&bopf;"], [0, "&copf;"], [0, "&dopf;"], [0, "&eopf;"], [0, "&fopf;"], [0, "&gopf;"], [0, "&hopf;"], [0, "&iopf;"], [0, "&jopf;"], [0, "&kopf;"], [0, "&lopf;"], [0, "&mopf;"], [0, "&nopf;"], [0, "&oopf;"], [0, "&popf;"], [0, "&qopf;"], [0, "&ropf;"], [0, "&sopf;"], [0, "&topf;"], [0, "&uopf;"], [0, "&vopf;"], [0, "&wopf;"], [0, "&xopf;"], [0, "&yopf;"], [0, "&zopf;"]])) }], [8906, "&fflig;"], [0, "&filig;"], [0, "&fllig;"], [0, "&ffilig;"], [0, "&ffllig;"]]));
 
-},{}],10:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.decodeXMLStrict = exports.decodeHTML5Strict = exports.decodeHTML4Strict = exports.decodeHTML5 = exports.decodeHTML4 = exports.decodeHTMLStrict = exports.decodeHTML = exports.decodeXML = exports.encodeHTML5 = exports.encodeHTML4 = exports.encodeNonAsciiHTML = exports.encodeHTML = exports.escapeText = exports.escapeAttribute = exports.escapeUTF8 = exports.escape = exports.encodeXML = exports.encode = exports.decodeStrict = exports.decode = exports.EncodingMode = exports.DecodingMode = exports.EntityLevel = void 0;
+exports.decodeXMLStrict = exports.decodeHTML5Strict = exports.decodeHTML4Strict = exports.decodeHTML5 = exports.decodeHTML4 = exports.decodeHTMLAttribute = exports.decodeHTMLStrict = exports.decodeHTML = exports.decodeXML = exports.DecodingMode = exports.EntityDecoder = exports.encodeHTML5 = exports.encodeHTML4 = exports.encodeNonAsciiHTML = exports.encodeHTML = exports.escapeText = exports.escapeAttribute = exports.escapeUTF8 = exports.escape = exports.encodeXML = exports.encode = exports.decodeStrict = exports.decode = exports.EncodingMode = exports.EntityLevel = void 0;
 var decode_js_1 = require("./decode.js");
 var encode_js_1 = require("./encode.js");
 var escape_js_1 = require("./escape.js");
@@ -2411,14 +1320,6 @@ var EntityLevel;
     /** Support HTML entities, which are a superset of XML entities. */
     EntityLevel[EntityLevel["HTML"] = 1] = "HTML";
 })(EntityLevel = exports.EntityLevel || (exports.EntityLevel = {}));
-/** Determines whether some entities are allowed to be written without a trailing `;`. */
-var DecodingMode;
-(function (DecodingMode) {
-    /** Support legacy HTML entities. */
-    DecodingMode[DecodingMode["Legacy"] = 0] = "Legacy";
-    /** Do not support legacy HTML entities. */
-    DecodingMode[DecodingMode["Strict"] = 1] = "Strict";
-})(DecodingMode = exports.DecodingMode || (exports.DecodingMode = {}));
 var EncodingMode;
 (function (EncodingMode) {
     /**
@@ -2456,12 +1357,10 @@ var EncodingMode;
  */
 function decode(data, options) {
     if (options === void 0) { options = EntityLevel.XML; }
-    var opts = typeof options === "number" ? { level: options } : options;
-    if (opts.level === EntityLevel.HTML) {
-        if (opts.mode === DecodingMode.Strict) {
-            return (0, decode_js_1.decodeHTMLStrict)(data);
-        }
-        return (0, decode_js_1.decodeHTML)(data);
+    var level = typeof options === "number" ? options : options.level;
+    if (level === EntityLevel.HTML) {
+        var mode = typeof options === "object" ? options.mode : undefined;
+        return (0, decode_js_1.decodeHTML)(data, mode);
     }
     return (0, decode_js_1.decodeXML)(data);
 }
@@ -2474,15 +1373,11 @@ exports.decode = decode;
  * @deprecated Use `decode` with the `mode` set to `Strict`.
  */
 function decodeStrict(data, options) {
+    var _a;
     if (options === void 0) { options = EntityLevel.XML; }
     var opts = typeof options === "number" ? { level: options } : options;
-    if (opts.level === EntityLevel.HTML) {
-        if (opts.mode === DecodingMode.Legacy) {
-            return (0, decode_js_1.decodeHTML)(data);
-        }
-        return (0, decode_js_1.decodeHTMLStrict)(data);
-    }
-    return (0, decode_js_1.decodeXML)(data);
+    (_a = opts.mode) !== null && _a !== void 0 ? _a : (opts.mode = decode_js_1.DecodingMode.Strict);
+    return decode(data, opts);
 }
 exports.decodeStrict = decodeStrict;
 /**
@@ -2524,9 +1419,12 @@ Object.defineProperty(exports, "encodeNonAsciiHTML", { enumerable: true, get: fu
 Object.defineProperty(exports, "encodeHTML4", { enumerable: true, get: function () { return encode_js_2.encodeHTML; } });
 Object.defineProperty(exports, "encodeHTML5", { enumerable: true, get: function () { return encode_js_2.encodeHTML; } });
 var decode_js_2 = require("./decode.js");
+Object.defineProperty(exports, "EntityDecoder", { enumerable: true, get: function () { return decode_js_2.EntityDecoder; } });
+Object.defineProperty(exports, "DecodingMode", { enumerable: true, get: function () { return decode_js_2.DecodingMode; } });
 Object.defineProperty(exports, "decodeXML", { enumerable: true, get: function () { return decode_js_2.decodeXML; } });
 Object.defineProperty(exports, "decodeHTML", { enumerable: true, get: function () { return decode_js_2.decodeHTML; } });
 Object.defineProperty(exports, "decodeHTMLStrict", { enumerable: true, get: function () { return decode_js_2.decodeHTMLStrict; } });
+Object.defineProperty(exports, "decodeHTMLAttribute", { enumerable: true, get: function () { return decode_js_2.decodeHTMLAttribute; } });
 // Legacy aliases (deprecated)
 Object.defineProperty(exports, "decodeHTML4", { enumerable: true, get: function () { return decode_js_2.decodeHTML; } });
 Object.defineProperty(exports, "decodeHTML5", { enumerable: true, get: function () { return decode_js_2.decodeHTML; } });
@@ -2534,1052 +1432,18 @@ Object.defineProperty(exports, "decodeHTML4Strict", { enumerable: true, get: fun
 Object.defineProperty(exports, "decodeHTML5Strict", { enumerable: true, get: function () { return decode_js_2.decodeHTMLStrict; } });
 Object.defineProperty(exports, "decodeXMLStrict", { enumerable: true, get: function () { return decode_js_2.decodeXML; } });
 
-},{"./decode.js":3,"./encode.js":5,"./escape.js":6}],11:[function(require,module,exports){
-/*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
-exports.read = function (buffer, offset, isLE, mLen, nBytes) {
-  var e, m
-  var eLen = (nBytes * 8) - mLen - 1
-  var eMax = (1 << eLen) - 1
-  var eBias = eMax >> 1
-  var nBits = -7
-  var i = isLE ? (nBytes - 1) : 0
-  var d = isLE ? -1 : 1
-  var s = buffer[offset + i]
-
-  i += d
-
-  e = s & ((1 << (-nBits)) - 1)
-  s >>= (-nBits)
-  nBits += eLen
-  for (; nBits > 0; e = (e * 256) + buffer[offset + i], i += d, nBits -= 8) {}
-
-  m = e & ((1 << (-nBits)) - 1)
-  e >>= (-nBits)
-  nBits += mLen
-  for (; nBits > 0; m = (m * 256) + buffer[offset + i], i += d, nBits -= 8) {}
-
-  if (e === 0) {
-    e = 1 - eBias
-  } else if (e === eMax) {
-    return m ? NaN : ((s ? -1 : 1) * Infinity)
-  } else {
-    m = m + Math.pow(2, mLen)
-    e = e - eBias
-  }
-  return (s ? -1 : 1) * m * Math.pow(2, e - mLen)
-}
-
-exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
-  var e, m, c
-  var eLen = (nBytes * 8) - mLen - 1
-  var eMax = (1 << eLen) - 1
-  var eBias = eMax >> 1
-  var rt = (mLen === 23 ? Math.pow(2, -24) - Math.pow(2, -77) : 0)
-  var i = isLE ? 0 : (nBytes - 1)
-  var d = isLE ? 1 : -1
-  var s = value < 0 || (value === 0 && 1 / value < 0) ? 1 : 0
-
-  value = Math.abs(value)
-
-  if (isNaN(value) || value === Infinity) {
-    m = isNaN(value) ? 1 : 0
-    e = eMax
-  } else {
-    e = Math.floor(Math.log(value) / Math.LN2)
-    if (value * (c = Math.pow(2, -e)) < 1) {
-      e--
-      c *= 2
-    }
-    if (e + eBias >= 1) {
-      value += rt / c
-    } else {
-      value += rt * Math.pow(2, 1 - eBias)
-    }
-    if (value * c >= 2) {
-      e++
-      c /= 2
-    }
-
-    if (e + eBias >= eMax) {
-      m = 0
-      e = eMax
-    } else if (e + eBias >= 1) {
-      m = ((value * c) - 1) * Math.pow(2, mLen)
-      e = e + eBias
-    } else {
-      m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen)
-      e = 0
-    }
-  }
-
-  for (; mLen >= 8; buffer[offset + i] = m & 0xff, i += d, m /= 256, mLen -= 8) {}
-
-  e = (e << mLen) | m
-  eLen += mLen
-  for (; eLen > 0; buffer[offset + i] = e & 0xff, i += d, e /= 256, eLen -= 8) {}
-
-  buffer[offset + i - d] |= s * 128
-}
-
-},{}],12:[function(require,module,exports){
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.APIWrapper = void 0;
-require("./models/impl_export");
-class APIWrapper {
-    getMangaDetails(source, mangaId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return source.getMangaDetails(mangaId);
-        });
-    }
-    getChapters(source, mangaId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return source.getChapters(mangaId);
-        });
-    }
-    getChapterDetails(source, mangaId, chapterId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return source.getChapterDetails(mangaId, chapterId);
-        });
-    }
-    searchRequest(source, query, metadata) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return source.searchRequest(query, metadata);
-        });
-    }
-    getTags(source) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!source.getTags) {
-                return null;
-            }
-            return source.getTags();
-        });
-    }
-    filterUpdatedManga(source, time, ids) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!source.filterUpdatedManga) {
-                return [];
-            }
-            // This method uses a callback to get multiple batches of updated manga. Aggrigate the data here
-            // and return it all at once as a response
-            var updateList = [];
-            let callbackFunc = function (updates) {
-                updateList.push(updates);
-            };
-            yield source.filterUpdatedManga(callbackFunc, time, ids);
-            return updateList;
-        });
-    }
-    getHomePageSections(source) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!source.getHomePageSections) {
-                return [];
-            }
-            // This method uses a callback to get multiple batches of a homesection. Aggrigate data and return all at once
-            var sections = [];
-            let callbackFunc = function (section) {
-                sections.push(section);
-            };
-            yield source.getHomePageSections(callbackFunc);
-            return sections;
-        });
-    }
-    /**
-     * Performs a 'get more' request. Usually this is done when a homesection has it's 'View More' button tapped, and the user
-     * is starting to scroll through all of the available titles in each section.
-     * It is recommended that when you write your tests for a source, that you run one test using this function,
-     * for each homepageSectionId that the source offers, if those sections are expected to traverse multiple pages
-     * @param source
-     * @param homepageSectionId
-     * @param metadata
-     * @param resultPageLimiter How many pages this should attempt to iterate through at most. This prevents
-     * you from being in an infinite loop. Defaults to 3.
-     */
-    getViewMoreItems(source, homepageSectionId, metadata, resultPageLimiter = 3) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!source.getViewMoreItems) {
-                return null;
-            }
-            var results = [];
-            // This may (and likely will) run multiple times, for multiple pages. Aggrigate up to the page limiter
-            for (let i = 0; i < resultPageLimiter; i++) {
-                let sourceResults = yield source.getViewMoreItems(homepageSectionId, metadata);
-                if (sourceResults === null || sourceResults.results.length == 0) {
-                    console.error(`getViewMoreItems was asked to run to a maximum of ${resultPageLimiter} pages, but retrieved no results on page ${i}`);
-                    return results;
-                }
-                results = results.concat(sourceResults.results);
-                metadata = sourceResults.metadata;
-                // If there is no other pages available, meaning the metadata is empty, exit the loop and do not try again
-                if (!sourceResults.metadata) {
-                    break;
-                }
-            }
-            return results;
-        });
-    }
-    getWebsiteMangaDirectory(source, metadata) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!source.getWebsiteMangaDirectory) {
-                return null;
-            }
-            return source.getWebsiteMangaDirectory(metadata);
-        });
-    }
-}
-exports.APIWrapper = APIWrapper;
-
-},{"./models/impl_export":88}],13:[function(require,module,exports){
-"use strict";
-/**
- * Request objects hold information for a particular source (see sources for example)
- * This allows us to to use a generic api to make the calls against any source
- */
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.urlEncodeObject = exports.convertTime = exports.Source = void 0;
-class Source {
-    constructor(cheerio) {
-        this.cheerio = cheerio;
-    }
-    /**
-     * @deprecated use {@link Source.getSearchResults getSearchResults} instead
-     */
-    searchRequest(query, metadata) {
-        return this.getSearchResults(query, metadata);
-    }
-    /**
-     * @deprecated use {@link Source.getSearchTags} instead
-     */
-    getTags() {
-        var _a;
-        return __awaiter(this, void 0, void 0, function* () {
-            // @ts-ignore
-            return (_a = this.getSearchTags) === null || _a === void 0 ? void 0 : _a.call(this);
-        });
-    }
-}
-exports.Source = Source;
-// Many sites use '[x] time ago' - Figured it would be good to handle these cases in general
-function convertTime(timeAgo) {
-    var _a;
-    let time;
-    let trimmed = Number(((_a = /\d*/.exec(timeAgo)) !== null && _a !== void 0 ? _a : [])[0]);
-    trimmed = (trimmed == 0 && timeAgo.includes('a')) ? 1 : trimmed;
-    if (timeAgo.includes('minutes')) {
-        time = new Date(Date.now() - trimmed * 60000);
-    }
-    else if (timeAgo.includes('hours')) {
-        time = new Date(Date.now() - trimmed * 3600000);
-    }
-    else if (timeAgo.includes('days')) {
-        time = new Date(Date.now() - trimmed * 86400000);
-    }
-    else if (timeAgo.includes('year') || timeAgo.includes('years')) {
-        time = new Date(Date.now() - trimmed * 31556952000);
-    }
-    else {
-        time = new Date(Date.now());
-    }
-    return time;
-}
-exports.convertTime = convertTime;
-/**
- * When a function requires a POST body, it always should be defined as a JsonObject
- * and then passed through this function to ensure that it's encoded properly.
- * @param obj
- */
-function urlEncodeObject(obj) {
-    let ret = {};
-    for (const entry of Object.entries(obj)) {
-        ret[encodeURIComponent(entry[0])] = encodeURIComponent(entry[1]);
-    }
-    return ret;
-}
-exports.urlEncodeObject = urlEncodeObject;
-
-},{}],14:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Tracker = void 0;
-class Tracker {
-    constructor(cheerio) {
-        this.cheerio = cheerio;
-    }
-}
-exports.Tracker = Tracker;
-
-},{}],15:[function(require,module,exports){
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !exports.hasOwnProperty(p)) __createBinding(exports, m, p);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-__exportStar(require("./Source"), exports);
-__exportStar(require("./Tracker"), exports);
-
-},{"./Source":13,"./Tracker":14}],16:[function(require,module,exports){
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !exports.hasOwnProperty(p)) __createBinding(exports, m, p);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-__exportStar(require("./base"), exports);
-__exportStar(require("./models"), exports);
-__exportStar(require("./APIWrapper"), exports);
-
-},{"./APIWrapper":12,"./base":15,"./models":89}],17:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createChapter = function (chapter) {
-    return chapter;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],18:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-
-},{}],19:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createChapterDetails = function (chapterDetails) {
-    return chapterDetails;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],20:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],21:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],22:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createButton = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],23:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],24:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createForm = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],25:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],26:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],27:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createHeader = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],28:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],29:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createInputField = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],30:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],31:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createLabel = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],32:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],33:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createLink = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],34:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],35:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createMultilineLabel = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],36:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],37:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createNavigationButton = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],38:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],39:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createOAuthButton = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],40:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],41:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createSection = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],42:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],43:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createSelect = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],44:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],45:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createStepper = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],46:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],47:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createSwitch = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],48:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],49:[function(require,module,exports){
-"use strict";
-
-},{}],50:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],51:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-require("./Button/_impl");
-require("./Form/_impl");
-require("./Header/_impl");
-require("./InputField/_impl");
-require("./Label/_impl");
-require("./Link/_impl");
-require("./MultilineLabel/_impl");
-require("./NavigationButton/_impl");
-require("./OAuthButton/_impl");
-require("./Section/_impl");
-require("./Select/_impl");
-require("./Switch/_impl");
-require("./WebViewButton/_impl");
-require("./Stepper/_impl");
-
-},{"./Button/_impl":22,"./Form/_impl":24,"./Header/_impl":27,"./InputField/_impl":29,"./Label/_impl":31,"./Link/_impl":33,"./MultilineLabel/_impl":35,"./NavigationButton/_impl":37,"./OAuthButton/_impl":39,"./Section/_impl":41,"./Select/_impl":43,"./Stepper/_impl":45,"./Switch/_impl":47,"./WebViewButton/_impl":49}],52:[function(require,module,exports){
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !exports.hasOwnProperty(p)) __createBinding(exports, m, p);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-__exportStar(require("./Button"), exports);
-__exportStar(require("./Form"), exports);
-__exportStar(require("./Header"), exports);
-__exportStar(require("./InputField"), exports);
-__exportStar(require("./Label"), exports);
-__exportStar(require("./Link"), exports);
-__exportStar(require("./MultilineLabel"), exports);
-__exportStar(require("./NavigationButton"), exports);
-__exportStar(require("./OAuthButton"), exports);
-__exportStar(require("./Section"), exports);
-__exportStar(require("./Select"), exports);
-__exportStar(require("./Switch"), exports);
-__exportStar(require("./WebViewButton"), exports);
-__exportStar(require("./FormRow"), exports);
-__exportStar(require("./Stepper"), exports);
-
-},{"./Button":23,"./Form":25,"./FormRow":26,"./Header":28,"./InputField":30,"./Label":32,"./Link":34,"./MultilineLabel":36,"./NavigationButton":38,"./OAuthButton":40,"./Section":42,"./Select":44,"./Stepper":46,"./Switch":48,"./WebViewButton":50}],53:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createHomeSection = function (section) {
-    return section;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],54:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.HomeSectionType = void 0;
-var HomeSectionType;
-(function (HomeSectionType) {
-    HomeSectionType["singleRowNormal"] = "singleRowNormal";
-    HomeSectionType["singleRowLarge"] = "singleRowLarge";
-    HomeSectionType["doubleRow"] = "doubleRow";
-    HomeSectionType["featured"] = "featured";
-})(HomeSectionType = exports.HomeSectionType || (exports.HomeSectionType = {}));
-
-},{}],55:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.LanguageCode = void 0;
-var LanguageCode;
-(function (LanguageCode) {
-    LanguageCode["UNKNOWN"] = "_unknown";
-    LanguageCode["BENGALI"] = "bd";
-    LanguageCode["BULGARIAN"] = "bg";
-    LanguageCode["BRAZILIAN"] = "br";
-    LanguageCode["CHINEESE"] = "cn";
-    LanguageCode["CZECH"] = "cz";
-    LanguageCode["GERMAN"] = "de";
-    LanguageCode["DANISH"] = "dk";
-    LanguageCode["ENGLISH"] = "gb";
-    LanguageCode["SPANISH"] = "es";
-    LanguageCode["FINNISH"] = "fi";
-    LanguageCode["FRENCH"] = "fr";
-    LanguageCode["WELSH"] = "gb";
-    LanguageCode["GREEK"] = "gr";
-    LanguageCode["CHINEESE_HONGKONG"] = "hk";
-    LanguageCode["HUNGARIAN"] = "hu";
-    LanguageCode["INDONESIAN"] = "id";
-    LanguageCode["ISRELI"] = "il";
-    LanguageCode["INDIAN"] = "in";
-    LanguageCode["IRAN"] = "ir";
-    LanguageCode["ITALIAN"] = "it";
-    LanguageCode["JAPANESE"] = "jp";
-    LanguageCode["KOREAN"] = "kr";
-    LanguageCode["LITHUANIAN"] = "lt";
-    LanguageCode["MONGOLIAN"] = "mn";
-    LanguageCode["MEXIAN"] = "mx";
-    LanguageCode["MALAY"] = "my";
-    LanguageCode["DUTCH"] = "nl";
-    LanguageCode["NORWEGIAN"] = "no";
-    LanguageCode["PHILIPPINE"] = "ph";
-    LanguageCode["POLISH"] = "pl";
-    LanguageCode["PORTUGUESE"] = "pt";
-    LanguageCode["ROMANIAN"] = "ro";
-    LanguageCode["RUSSIAN"] = "ru";
-    LanguageCode["SANSKRIT"] = "sa";
-    LanguageCode["SAMI"] = "si";
-    LanguageCode["THAI"] = "th";
-    LanguageCode["TURKISH"] = "tr";
-    LanguageCode["UKRAINIAN"] = "ua";
-    LanguageCode["VIETNAMESE"] = "vn";
-})(LanguageCode = exports.LanguageCode || (exports.LanguageCode = {}));
-
-},{}],56:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createManga = function (manga) {
-    return manga;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],57:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.MangaStatus = void 0;
-var MangaStatus;
-(function (MangaStatus) {
-    MangaStatus[MangaStatus["ONGOING"] = 1] = "ONGOING";
-    MangaStatus[MangaStatus["COMPLETED"] = 0] = "COMPLETED";
-    MangaStatus[MangaStatus["UNKNOWN"] = 2] = "UNKNOWN";
-    MangaStatus[MangaStatus["ABANDONED"] = 3] = "ABANDONED";
-    MangaStatus[MangaStatus["HIATUS"] = 4] = "HIATUS";
-})(MangaStatus = exports.MangaStatus || (exports.MangaStatus = {}));
-
-},{}],58:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createMangaTile = function (mangaTile) {
-    return mangaTile;
-};
-_global.createIconText = function (iconText) {
-    return iconText;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],59:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],60:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createMangaUpdates = function (update) {
-    return update;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],61:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],62:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createPagedResults = function (update) {
-    return update;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],63:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],64:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createByteArray = function (rawData) {
-    return new Uint8Array(rawData);
-};
-_global.createRawData = function (byteArray) {
-    return Object.assign(Object.assign({}, byteArray), { length: byteArray.length, toString: () => {
-            var out, i, len, c;
-            var char2, char3;
-            out = "";
-            len = this.length;
-            i = 0;
-            while (i < len) {
-                c = this[i++];
-                switch (c >> 4) {
-                    case 0:
-                    case 1:
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 5:
-                    case 6:
-                    case 7:
-                        // 0xxxxxxx
-                        out += String.fromCharCode(c);
-                        break;
-                    case 12:
-                    case 13:
-                        // 110x xxxx   10xx xxxx
-                        char2 = this[i++];
-                        out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
-                        break;
-                    case 14:
-                        // 1110 xxxx  10xx xxxx  10xx xxxx
-                        char2 = this[i++];
-                        char3 = this[i++];
-                        out += String.fromCharCode(((c & 0x0F) << 12) |
-                            ((char2 & 0x3F) << 6) |
-                            ((char3 & 0x3F) << 0));
-                        break;
-                }
-            }
-            return out;
-        } });
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],65:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],66:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],67:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],68:[function(require,module,exports){
-(function (global,Buffer){(function (){
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-//@ts-ignore
-const axios_1 = __importDefault(require("axios"));
-const _global = global;
-_global.createRequestManager = function (info) {
-    return Object.assign(Object.assign({}, info), { schedule: function (request, retryCount) {
-            var _a, _b, _c, _d, _e;
-            return __awaiter(this, void 0, void 0, function* () {
-                // Pass this request through the interceptor if one exists
-                if (info.interceptor) {
-                    request = yield info.interceptor.interceptRequest(request);
-                }
-                // Append any cookies into the header properly
-                let headers = (_a = request.headers) !== null && _a !== void 0 ? _a : {};
-                let cookieData = '';
-                for (let cookie of (_b = request.cookies) !== null && _b !== void 0 ? _b : [])
-                    cookieData += `${cookie.name}=${cookie.value};`;
-                headers['cookie'] = cookieData;
-                // If no user agent has been supplied, default to a basic Paperback-iOS agent
-                headers['user-agent'] = (_c = headers["user-agent"]) !== null && _c !== void 0 ? _c : 'Paperback-iOS';
-                // If we are using a urlencoded form data as a post body, we need to decode the request for Axios
-                let decodedData = request.data;
-                if (typeof decodedData == 'object') {
-                    if ((_d = headers['content-type']) === null || _d === void 0 ? void 0 : _d.includes('application/x-www-form-urlencoded')) {
-                        decodedData = "";
-                        Object.keys(request.data).forEach(attribute => {
-                            if (decodedData.length > 0) {
-                                decodedData += "&";
-                            }
-                            decodedData += `${attribute}=${request.data[attribute]}`;
-                        });
-                    }
-                }
-                // We must first get the response object from Axios, and then transcribe it into our own Response type before returning
-                let response = yield axios_1.default(`${request.url}${(_e = request.param) !== null && _e !== void 0 ? _e : ''}`, {
-                    method: request.method,
-                    headers: headers,
-                    data: decodedData,
-                    timeout: info.requestTimeout || 0,
-                    responseType: 'arraybuffer'
-                });
-                let responsePacked = {
-                    rawData: createRawData(response.data),
-                    data: Buffer.from(response.data, 'binary').toString(),
-                    status: response.status,
-                    headers: response.headers,
-                    request: request
-                };
-                // Pass this through the response interceptor if one exists
-                if (info.interceptor) {
-                    responsePacked = yield info.interceptor.interceptResponse(responsePacked);
-                }
-                return responsePacked;
-            });
-        } });
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"axios":"axios","buffer":2}],69:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],70:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createCookie = function (cookie) {
-    return cookie;
-};
-_global.createRequestObject = function (request) {
-    return request;
-};
-_global.createRequestObject = function (requestObject) {
-    return requestObject;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],71:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],72:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],73:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createSearchField = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],74:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],75:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SearchOperator = void 0;
-var SearchOperator;
-(function (SearchOperator) {
-    SearchOperator["AND"] = "AND";
-    SearchOperator["OR"] = "OR";
-})(SearchOperator = exports.SearchOperator || (exports.SearchOperator = {}));
-
-},{}],76:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ContentRating = void 0;
-/**
- * A content rating to be attributed to each source.
- */
-var ContentRating;
-(function (ContentRating) {
-    ContentRating["EVERYONE"] = "EVERYONE";
-    ContentRating["MATURE"] = "MATURE";
-    ContentRating["ADULT"] = "ADULT";
-})(ContentRating = exports.ContentRating || (exports.ContentRating = {}));
-
-},{}],77:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createSourceManga = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],78:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],79:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createSourceStateManager = function (info) {
-    return Object.assign(Object.assign({}, info), { store: function (key, value) {
-            // Fill this in so the test classes don't commit sudoku
-            virtualStateStore[key] = value;
-            return Promise.resolve();
-        }, retrieve: function (key) {
-            var _a;
-            return Promise.resolve((_a = virtualStateStore[key]) !== null && _a !== void 0 ? _a : "");
-        }, keychain: {
-            store: function (key, value) {
-                // Fill this in so the test classes don't commit sudoku
-                virtualKeychainStore[key] = value;
-                return Promise.resolve();
-            },
-            retrieve: function (key) {
-                var _a;
-                return Promise.resolve((_a = virtualKeychainStore[key]) !== null && _a !== void 0 ? _a : "");
-            }
-        } });
-};
-var virtualStateStore = {};
-var virtualKeychainStore = {};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],80:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],81:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TagType = void 0;
-/**
- * An enumerator which {@link SourceTags} uses to define the color of the tag rendered on the website.
- * Five types are available: blue, green, grey, yellow and red, the default one is blue.
- * Common colors are red for (Broken), yellow for (+18), grey for (Country-Proof)
- */
-var TagType;
-(function (TagType) {
-    TagType["BLUE"] = "default";
-    TagType["GREEN"] = "success";
-    TagType["GREY"] = "info";
-    TagType["YELLOW"] = "warning";
-    TagType["RED"] = "danger";
-})(TagType = exports.TagType || (exports.TagType = {}));
-
-},{}],82:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const _global = global;
-_global.createTagSection = function (tagSection) {
-    return tagSection;
-};
-_global.createTag = function (tag) {
-    return tag;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],83:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],84:[function(require,module,exports){
-(function (global){(function (){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-let _global = global;
-_global.createTrackedManga = function (info) {
-    return info;
-};
-
-}).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],85:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],86:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],87:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],88:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-require("./Chapter/_impl");
-require("./ChapterDetails/_impl");
-require("./HomeSection/_impl");
-require("./Manga/_impl");
-require("./MangaTile/_impl");
-require("./RequestObject/_impl");
-require("./TagSection/_impl");
-require("./MangaUpdate/_impl");
-require("./PagedResults/_impl");
-require("./SourceStateManager/_impl");
-require("./RequestManager/_impl");
-require("./DynamicUI/impl_export");
-require("./TrackedManga/_impl");
-require("./SourceManga/_impl");
-require("./SearchField/_impl");
-require("./RawData/_impl");
-
-},{"./Chapter/_impl":17,"./ChapterDetails/_impl":19,"./DynamicUI/impl_export":51,"./HomeSection/_impl":53,"./Manga/_impl":56,"./MangaTile/_impl":58,"./MangaUpdate/_impl":60,"./PagedResults/_impl":62,"./RawData/_impl":64,"./RequestManager/_impl":68,"./RequestObject/_impl":70,"./SearchField/_impl":73,"./SourceManga/_impl":77,"./SourceStateManager/_impl":79,"./TagSection/_impl":82,"./TrackedManga/_impl":84}],89:[function(require,module,exports){
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !exports.hasOwnProperty(p)) __createBinding(exports, m, p);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-__exportStar(require("./Chapter"), exports);
-__exportStar(require("./ChapterDetails"), exports);
-__exportStar(require("./HomeSection"), exports);
-__exportStar(require("./Manga"), exports);
-__exportStar(require("./MangaTile"), exports);
-__exportStar(require("./RequestObject"), exports);
-__exportStar(require("./SearchRequest"), exports);
-__exportStar(require("./TagSection"), exports);
-__exportStar(require("./SourceTag"), exports);
-__exportStar(require("./Languages"), exports);
-__exportStar(require("./Constants"), exports);
-__exportStar(require("./MangaUpdate"), exports);
-__exportStar(require("./PagedResults"), exports);
-__exportStar(require("./ResponseObject"), exports);
-__exportStar(require("./RequestManager"), exports);
-__exportStar(require("./RequestHeaders"), exports);
-__exportStar(require("./SourceInfo"), exports);
-__exportStar(require("./SourceStateManager"), exports);
-__exportStar(require("./RequestInterceptor"), exports);
-__exportStar(require("./DynamicUI"), exports);
-__exportStar(require("./TrackedManga"), exports);
-__exportStar(require("./SourceManga"), exports);
-__exportStar(require("./TrackedMangaChapterReadAction"), exports);
-__exportStar(require("./TrackerActionQueue"), exports);
-__exportStar(require("./SearchField"), exports);
-__exportStar(require("./RawData"), exports);
-
-},{"./Chapter":18,"./ChapterDetails":20,"./Constants":21,"./DynamicUI":52,"./HomeSection":54,"./Languages":55,"./Manga":57,"./MangaTile":59,"./MangaUpdate":61,"./PagedResults":63,"./RawData":65,"./RequestHeaders":66,"./RequestInterceptor":67,"./RequestManager":69,"./RequestObject":71,"./ResponseObject":72,"./SearchField":74,"./SearchRequest":75,"./SourceInfo":76,"./SourceManga":78,"./SourceStateManager":80,"./SourceTag":81,"./TagSection":83,"./TrackedManga":85,"./TrackedMangaChapterReadAction":86,"./TrackerActionQueue":87}],90:[function(require,module,exports){
+},{"./decode.js":62,"./encode.js":64,"./escape.js":65}],70:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SOURCE_VERSION = void 0;
-const paperback_extensions_common_1 = require("paperback-extensions-common");
+const types_1 = require("@paperback/types");
 const BuonduaBaseParser_1 = require("./BuonduaBaseParser");
 exports.SOURCE_VERSION = '1.1.0';
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15';
-class Buondua extends paperback_extensions_common_1.Source {
-    constructor() {
-        super(...arguments);
-        this.requestManager = createRequestManager({
+class Buondua {
+    constructor(cheerio) {
+        this.cheerio = cheerio;
+        this.requestManager = App.createRequestManager({
             requestsPerSecond: 4,
             requestTimeout: 15000,
             interceptor: {
@@ -3603,23 +1467,24 @@ class Buondua extends paperback_extensions_common_1.Source {
         return `${this.baseUrl}/${mangaId}`;
     }
     async getHomePageSections(sectionCallback) {
-        const requestForRecent = createRequestObject({
+        const requestForRecent = App.createRequest({
             url: `${this.baseUrl}`,
             method: 'GET'
         });
         const responseForRecent = await this.requestManager.schedule(requestForRecent, 1);
         const $recent = this.cheerio.load(responseForRecent.data);
-        const recentAlbumsSection = createHomeSection({ id: 'recent', title: 'Recently Uploaded', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
+        const recentAlbumsSection = App.createHomeSection({ id: 'recent', title: 'Recently Uploaded', containsMoreItems: true,
+            type: types_1.HomeSectionType.singleRowNormal });
         const recentAlbums = (0, BuonduaBaseParser_1.getAlbums)($recent, this.hasEncodedUrls);
         recentAlbumsSection.items = recentAlbums;
         sectionCallback(recentAlbumsSection);
-        const requestForHot = createRequestObject({
+        const requestForHot = App.createRequest({
             url: `${this.baseUrl}/hot`,
             method: 'GET'
         });
         const responseForHot = await this.requestManager.schedule(requestForHot, 1);
         const $hot = this.cheerio.load(responseForHot.data);
-        const hotAlbumsSection = createHomeSection({ id: 'hot', title: 'Hot', view_more: true, type: paperback_extensions_common_1.HomeSectionType.singleRowNormal });
+        const hotAlbumsSection = App.createHomeSection({ id: 'hot', title: 'Hot', containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
         const hotAlbums = (0, BuonduaBaseParser_1.getAlbums)($hot, this.hasEncodedUrls);
         hotAlbumsSection.items = hotAlbums;
         sectionCallback(hotAlbumsSection);
@@ -3638,7 +1503,7 @@ class Buondua extends paperback_extensions_common_1.Source {
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
         }
-        const request = createRequestObject({
+        const request = App.createRequest({
             url: `${this.baseUrl}`,
             method: 'GET',
             param
@@ -3647,43 +1512,37 @@ class Buondua extends paperback_extensions_common_1.Source {
         const $ = this.cheerio.load(response.data);
         const albums = (0, BuonduaBaseParser_1.getAlbums)($, this.hasEncodedUrls);
         metadata = !(0, BuonduaBaseParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
-        return createPagedResults({
+        return App.createPagedResults({
             results: albums,
             metadata
         });
     }
     async getMangaDetails(mangaId) {
         const data = await (0, BuonduaBaseParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls);
-        return createManga({
+        return App.createSourceManga({
             id: mangaId,
-            titles: data.titles,
-            image: data.image,
-            status: paperback_extensions_common_1.MangaStatus.UNKNOWN,
-            langFlag: paperback_extensions_common_1.LanguageCode.UNKNOWN,
-            author: this.sourceName,
-            artist: this.sourceName,
-            tags: data.tags,
-            desc: data.desc
+            mangaInfo: App.createMangaInfo({
+                titles: data.titles,
+                image: data.image,
+                status: 'Unknown',
+                tags: data.tags,
+                desc: data.desc,
+            })
         });
     }
     async getChapters(mangaId) {
         const data = await (0, BuonduaBaseParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls);
         const chapters = [];
-        chapters.push(createChapter({
+        chapters.push(App.createChapter({
             id: data.id,
-            mangaId,
-            name: 'Album',
-            langCode: paperback_extensions_common_1.LanguageCode.UNKNOWN,
-            chapNum: 1,
-            time: new Date(),
+            chapNum: 1
         }));
         return chapters;
     }
     async getChapterDetails(mangaId, chapterId) {
-        return createChapterDetails({
+        return App.createChapterDetails({
             id: chapterId,
             mangaId: mangaId,
-            longStrip: false,
             pages: await (0, BuonduaBaseParser_1.getPages)(mangaId, this.requestManager, this.cheerio, this.baseUrl, this.hasEncodedUrls)
         });
     }
@@ -3692,13 +1551,13 @@ class Buondua extends paperback_extensions_common_1.Source {
         const albumNum = metadata?.page ?? 0;
         let request;
         if (query.title) {
-            request = createRequestObject({
+            request = App.createRequest({
                 url: `${this.baseUrl}/?search=${encodeURIComponent(query.title)}&start=${albumNum}`,
                 method: 'GET'
             });
         }
         else {
-            request = createRequestObject({
+            request = App.createRequest({
                 url: this.hasEncodedTags ? `${this.baseUrl}/tag/${query.includedTags?.map((x) => encodeURIComponent(x.id.substring(4)))}?start=${albumNum})`
                     : `${this.baseUrl}/${query.includedTags?.map(x => x.id)}?start=${albumNum})`,
                 method: 'GET'
@@ -3708,7 +1567,7 @@ class Buondua extends paperback_extensions_common_1.Source {
         const $ = this.cheerio.load(response.data);
         const albums = (0, BuonduaBaseParser_1.getAlbums)($, this.hasEncodedUrls);
         metadata = !(0, BuonduaBaseParser_1.isLastPage)($) ? { page: albumNum + albums.length } : undefined;
-        return createPagedResults({
+        return App.createPagedResults({
             results: albums,
             metadata
         });
@@ -3716,7 +1575,7 @@ class Buondua extends paperback_extensions_common_1.Source {
 }
 exports.default = Buondua;
 
-},{"./BuonduaBaseParser":91,"paperback-extensions-common":16}],91:[function(require,module,exports){
+},{"./BuonduaBaseParser":71,"@paperback/types":61}],71:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.REGEX_ASIAN = void 0;
@@ -3738,10 +1597,10 @@ function getAlbums($, hasEncodedUrls) {
             if (!id || !title) {
                 continue;
             }
-            albums.push(createMangaTile({
-                id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
+            albums.push(App.createPartialSourceManga({
+                mangaId: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
                 image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
-                title: createIconText({ text: entities.decodeHTML(title) })
+                title: entities.decodeHTML(title)
             }));
         }
     }
@@ -3750,7 +1609,7 @@ function getAlbums($, hasEncodedUrls) {
 exports.getAlbums = getAlbums;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrls) {
-    const request = createRequestObject({
+    const request = App.createRequest({
         url: `${domain}/${id}`,
         method: 'GET'
     });
@@ -3776,10 +1635,10 @@ async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrl
         hasEncodedUrls ? tagsToRender.push({ id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label })
             : tagsToRender.push({ id: id, label: label });
     }
-    const tagSections = [createTagSection({
+    const tagSections = [App.createTagSection({
             id: '0',
             label: 'Tags',
-            tags: tagsToRender.map(x => createTag(x))
+            tags: tagsToRender.map(x => App.createTag(x))
         })];
     return {
         id: id.match(exports.REGEX_ASIAN) ? encodeURIComponent(id) : id,
@@ -3791,7 +1650,7 @@ async function getGalleryData(id, requestManager, cheerio, domain, hasEncodedUrl
 }
 exports.getGalleryData = getGalleryData;
 async function getPages(id, requestManager, cheerio, domain, hasEncodedUrls) {
-    const request = createRequestObject({
+    const request = App.createRequest({
         url: `${domain}/${id}`,
         method: 'GET'
     });
@@ -3800,7 +1659,7 @@ async function getPages(id, requestManager, cheerio, domain, hasEncodedUrls) {
     const pages = [];
     const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
     for (let i = 0; i < pageCount; i++) {
-        const request = createRequestObject({
+        const request = App.createRequest({
             url: `${domain}/${id}?page=${i + 1}`,
             method: 'GET'
         });
@@ -3832,14 +1691,14 @@ const isLastPage = ($) => {
 };
 exports.isLastPage = isLastPage;
 
-},{"entities":10}],92:[function(require,module,exports){
+},{"entities":69}],72:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Kostaku = exports.KostakuInfo = void 0;
-const paperback_extensions_common_1 = require("paperback-extensions-common");
+const types_1 = require("@paperback/types");
 const BuonduaBase_1 = require("../BuonduaBase");
 const BuonduaBase_2 = __importDefault(require("../BuonduaBase"));
 const DOMAIN = 'https://kostaku.art';
@@ -3850,14 +1709,15 @@ exports.KostakuInfo = {
     author: 'WaltersAsh',
     authorWebsite: 'https://github.com/WaltersAsh',
     description: 'Extension to grab albums from Kostaku',
-    contentRating: paperback_extensions_common_1.ContentRating.ADULT,
+    contentRating: types_1.ContentRating.ADULT,
     websiteBaseURL: DOMAIN,
     sourceTags: [
         {
             text: '18+',
-            type: paperback_extensions_common_1.TagType.RED
+            type: types_1.BadgeColor.RED
         }
-    ]
+    ],
+    intents: types_1.SourceIntents.MANGA_CHAPTERS | types_1.SourceIntents.HOMEPAGE_SECTIONS
 };
 class Kostaku extends BuonduaBase_2.default {
     constructor() {
@@ -3870,5 +1730,5 @@ class Kostaku extends BuonduaBase_2.default {
 }
 exports.Kostaku = Kostaku;
 
-},{"../BuonduaBase":90,"paperback-extensions-common":16}]},{},[92])(92)
+},{"../BuonduaBase":70,"@paperback/types":61}]},{},[72])(72)
 });
