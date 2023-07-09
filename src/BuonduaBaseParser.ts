@@ -1,16 +1,16 @@
 import {
-    MangaTile,
+    PartialSourceManga,
     RequestManager,
     Tag,
     TagSection
-} from 'paperback-extensions-common';
+} from '@paperback/types';
 
 import entities = require('entities');
 
 export const REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 
-export function getAlbums ($: CheerioStatic, hasEncodedUrls: boolean): MangaTile[] {
-    const albums: MangaTile[] = [];
+export function getAlbums ($: CheerioStatic, hasEncodedUrls: boolean): PartialSourceManga[] {
+    const albums: PartialSourceManga[] = [];
     const albumCoverGroups = $('div.blog').toArray();
 
     for (const albumCoverGroup of albumCoverGroups) {
@@ -29,10 +29,10 @@ export function getAlbums ($: CheerioStatic, hasEncodedUrls: boolean): MangaTile
             if (!id || !title) {
                 continue;
             }
-            albums.push(createMangaTile({
-                id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id,
+            albums.push(App.createPartialSourceManga({
+                mangaId: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id,
                 image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
-                title: createIconText({text: entities.decodeHTML(title)})
+                title: entities.decodeHTML(title)
             }));
         }
     }
@@ -42,12 +42,12 @@ export function getAlbums ($: CheerioStatic, hasEncodedUrls: boolean): MangaTile
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getGalleryData(id: string, requestManager: RequestManager, cheerio: CheerioAPI, domain: string, hasEncodedUrls: boolean): Promise<any> {
-    const request = createRequestObject({
+    const request = App.createRequest({
         url: `${domain}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
-    const $ = cheerio.load(data.data);
+    const $ = cheerio.load(data.data as string);
     
     const title = $('div.article-header').first().text();
     let image = $('img', 'div.article-fulltext').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
@@ -72,10 +72,10 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
             : tagsToRender.push({ id: id, label: label });
     }
 
-    const tagSections: TagSection[] = [createTagSection({
+    const tagSections: TagSection[] = [App.createTagSection({
         id: '0',
         label: 'Tags',
-        tags: tagsToRender.map(x => createTag(x)) 
+        tags: tagsToRender.map(x => App.createTag(x)) 
     })];
 
     return {
@@ -88,23 +88,23 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
 }
 
 export async function getPages(id: string, requestManager: RequestManager, cheerio: CheerioAPI, domain: string, hasEncodedUrls: boolean): Promise<string[]> {
-    const request = createRequestObject({
+    const request = App.createRequest({
         url: `${domain}/${id}`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
-    const $ = cheerio.load(data.data);
+    const $ = cheerio.load(data.data as string);
     
     const pages: string[] = [];
     const pageCount = parseInt($('a.pagination-link', 'nav.pagination').last().text());
 
     for (let i = 0; i < pageCount; i++) {
-        const request = createRequestObject({
+        const request = App.createRequest({
             url: `${domain}/${id}?page=${i + 1}`,
             method: 'GET'
         });
         const data = await requestManager.schedule(request, 1);
-        const $ = cheerio.load(data.data);
+        const $ = cheerio.load(data.data as string);
 
         const images = $('p', 'div.article-fulltext').toArray();
         for (const img of images) {

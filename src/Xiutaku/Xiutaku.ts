@@ -1,8 +1,9 @@
 import {
     SourceInfo,
-    TagType,
     ContentRating,
-} from 'paperback-extensions-common';
+    SourceIntents,
+    BadgeColor,
+} from '@paperback/types';
 
 import { SOURCE_VERSION } from '../BuonduaBase';
 
@@ -22,9 +23,10 @@ export const XiutakuInfo: SourceInfo = {
     sourceTags: [
         {
             text: '18+',
-            type: TagType.RED
+            type: BadgeColor.RED
         }
-    ]
+    ],
+    intents: SourceIntents.MANGA_CHAPTERS | SourceIntents.HOMEPAGE_SECTIONS
 };
 
 export class Xiutaku extends BuonduaBase {

@@ -1,22 +1,23 @@
 import {
-    Source,
-    Manga,
+    SourceManga,
     Chapter,
     ChapterDetails,
     HomeSection,
+    HomeSectionType,
+    TagSection,
     SearchRequest,
     PagedResults,
     SourceInfo,
-    TagSection,
-    TagType,
-    Request,
-    RequestManager,
     ContentRating,
+    BadgeColor,
+    Request,
     Response,
-    MangaStatus,
-    LanguageCode,
-    HomeSectionType
-} from 'paperback-extensions-common';
+    SourceIntents,
+    ChapterProviding,
+    MangaProviding,
+    SearchResultsProviding,
+    HomePageSectionsProviding
+} from '@paperback/types';
 
 import { 
     DOMAIN,
@@ -39,17 +40,21 @@ export const AsianToLickInfo: SourceInfo = {
     sourceTags: [
         {
             text: '18+',
-            type: TagType.RED
+            type: BadgeColor.RED
         },
         {
             text: 'In Dev',
-            type: TagType.GREY
+            type: BadgeColor.GREY
         }
-    ]
+    ],
+    intents: SourceIntents.MANGA_CHAPTERS | SourceIntents.HOMEPAGE_SECTIONS
 };
 
-export class AsianToLick extends Source {
-    readonly requestManager: RequestManager = createRequestManager({
+export class AsianToLick implements SearchResultsProviding, MangaProviding, ChapterProviding, HomePageSectionsProviding {
+    
+    constructor(private cheerio: CheerioAPI) { }
+    
+    readonly requestManager = App.createRequestManager({
         requestsPerSecond: 4,
         requestTimeout: 15000,
         interceptor: {
@@ -69,49 +74,49 @@ export class AsianToLick extends Source {
         }
     });
 
-    override getMangaShareUrl(mangaId: string): string {
+    getMangaShareUrl(mangaId: string): string {
         return `${DOMAIN}/${mangaId}`;
     }
 
-    override async getSearchTags(): Promise<TagSection[]> {
+    async getSearchTags(): Promise<TagSection[]> {
         const genres = await getTags(this.requestManager, this.cheerio);
        
         return [
-            createTagSection({
+            App.createTagSection({
                 id: 'cats', label: 'Categories', tags: genres[0] ?? []
             }),
-            createTagSection({
+            App.createTagSection({
                 id: 'tags', label: 'Tags', tags: genres[1] ?? []
             }),
         ];
     }
 
-    override async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
-        const requestForRecent = createRequestObject({
+    async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
+        const requestForRecent = App.createRequest({
             url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=news&index=&ver=43`,
             method: 'GET'
         });
         const responseForRecent = await this.requestManager.schedule(requestForRecent, 1);
-        const $recent = this.cheerio.load(responseForRecent.data);
-        const recentAlbumsSection = createHomeSection({id: 'recent', title: 'Recent', view_more: true, type: HomeSectionType.singleRowNormal});
+        const $recent = this.cheerio.load(responseForRecent.data as string);
+        const recentAlbumsSection = App.createHomeSection({id: 'recent', title: 'Recent', containsMoreItems: true, type: HomeSectionType.singleRowNormal});
         const recentAlbums = getAlbums($recent);
         recentAlbumsSection.items = recentAlbums;
         sectionCallback(recentAlbumsSection);
 
-        const requestForHot = createRequestObject({
+        const requestForHot = App.createRequest({
             url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=&page=&index=&ver=22`,
             method: 'GET'
         });
         const responseForHot = await this.requestManager.schedule(requestForHot, 1);
-        const $hot = this.cheerio.load(responseForHot.data);
-        const hotAlbumsSection = createHomeSection({id: 'hot', title: 'Top Rated', view_more: true, type: HomeSectionType.singleRowNormal});
+        const $hot = this.cheerio.load(responseForHot.data as string);
+        const hotAlbumsSection = App.createHomeSection({id: 'hot', title: 'Top Rated', containsMoreItems: true, type: HomeSectionType.singleRowNormal});
         const hotAlbums = getAlbums($hot);
         hotAlbumsSection.items = hotAlbums;
         sectionCallback(hotAlbumsSection);
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
-    override async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
+    async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
         const results: number = metadata?.page ?? 0;
 
         let param = '';
@@ -126,69 +131,63 @@ export class AsianToLick extends Source {
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
         }
 
-        const request = createRequestObject({
+        const request = App.createRequest({
             url: `${DOMAIN}`,
             method: 'GET',
             param
         });
         const response = await this.requestManager.schedule(request, 1);
-        const $ = this.cheerio.load(response.data);
+        const $ = this.cheerio.load(response.data as string);
         
         const albums = getAlbums($);
         metadata = !isLastPage($) ? {page: results + 1} : undefined;
-        return createPagedResults({
+        return App.createPagedResults({
             results: albums,
             metadata
         });
     }
 
-    override async getMangaDetails(mangaId: string): Promise<Manga> {
+    async getMangaDetails(mangaId: string): Promise<SourceManga> {
         const data = await getGalleryData(mangaId, this.requestManager, this.cheerio);
 
-        return createManga({
+        return App.createSourceManga({
             id: mangaId,
-            titles: data.titles,
-            image: data.image,
-            status: MangaStatus.UNKNOWN,
-            langFlag: LanguageCode.UNKNOWN,
-            author: 'ATL',
-            artist: 'ATL',
-            tags: data.tags,
-            desc: data.desc
+            mangaInfo: App.createMangaInfo({
+                titles: data.titles,
+                image: data.image,
+                status: 'Unknown',
+                tags: data.tags,
+                desc: data.desc,
+            })
         });
     }
 
     async getChapters(mangaId: string): Promise<Chapter[]> {
         const data = await getGalleryData(mangaId, this.requestManager, this.cheerio);
         const chapters: Chapter[] = [];
-        chapters.push(createChapter({
-            id: data.id,
-            mangaId,
-            name: 'Album',
-            langCode: LanguageCode.UNKNOWN,
-            chapNum: 1,
-            time: new Date(),
+        chapters.push(App.createChapter({
+            id: data.id, // could be mangaId, idk
+            chapNum: 1
         }));
 
         return chapters;
     }
 
     async getChapterDetails(mangaId: string, chapterId: string): Promise<ChapterDetails> {
-        return createChapterDetails({
+        return App.createChapterDetails({
             id: chapterId,
             mangaId: mangaId,
-            longStrip: false,
             pages: await getPages(mangaId, this.requestManager, this.cheerio)
         });
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
-    override async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
+    async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
         const results: number = metadata?.page ?? 0;
 
         let request;
         if (query.title) {
-            request = createRequestObject({
+            request = App.createRequest({
                 url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=&search=${encodeURIComponent(query.title)}&page=&index=${results}&ver=74`,
                 method: 'GET'
             });
@@ -203,24 +202,24 @@ export class AsianToLick extends Source {
                 id = idSplit[1]?.split('/')[0]?.toString();
             }
             if (isCat) {
-                request = createRequestObject({
+                request = App.createRequest({
                     url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=${id}&tag=&search=&page=&index=${results}&ver=79)`,
                     method: 'GET'
                 });
             } else {
-                request = createRequestObject({
+                request = App.createRequest({
                     url: `${DOMAIN}/ajax/buscar_posts.php?post=&cat=&tag=${id}&search=&page=&index=${results}&ver=79)`,
                     method: 'GET'
                 });
             }
         }
         const response = await this.requestManager.schedule(request, 1);
-        const $ = this.cheerio.load(response.data);
+        const $ = this.cheerio.load(response.data as string);
 
         const albums = getAlbums($);
         metadata = !isLastPage($) ? {page: results + 1} : undefined;
         
-        return createPagedResults({
+        return App.createPagedResults({
             results: albums,
             metadata
         });
