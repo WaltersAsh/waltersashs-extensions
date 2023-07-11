@@ -1,7 +1,7 @@
 {
     "name": "waltersashs-extensions",
     "version": "2.0.0",
-    "repositoryName": "WaltersAsh's Extensions (Development)",
+    "repositoryName": "WaltersAsh's Extensions (0.8)",
     "description": "WaltersAsh's extensions in Development",
     "main": "index.js",
     "scripts": {
