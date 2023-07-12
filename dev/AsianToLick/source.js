@@ -1451,10 +1451,6 @@ exports.AsianToLickInfo = {
         {
             text: '18+',
             type: types_1.BadgeColor.RED
-        },
-        {
-            text: 'In Dev',
-            type: types_1.BadgeColor.GREY
         }
     ],
     intents: types_1.SourceIntents.MANGA_CHAPTERS | types_1.SourceIntents.HOMEPAGE_SECTIONS
