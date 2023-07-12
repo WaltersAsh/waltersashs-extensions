@@ -41,10 +41,6 @@ export const AsianToLickInfo: SourceInfo = {
         {
             text: '18+',
             type: BadgeColor.RED
-        },
-        {
-            text: 'In Dev',
-            type: BadgeColor.GREY
         }
     ],
     intents: SourceIntents.MANGA_CHAPTERS | SourceIntents.HOMEPAGE_SECTIONS
