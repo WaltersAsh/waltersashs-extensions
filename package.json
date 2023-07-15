@@ -2,7 +2,7 @@
     "name": "waltersashs-extensions",
     "version": "2.0.0",
     "repositoryName": "WaltersAsh's Extensions (Development)",
-    "description": "WaltersAsh's extensions in Development",
+    "description": "WaltersAsh's extensions in Development - This is a sandbox where some of these sources may not work properly or work at all. These sources are either in-progress or a proof of concept that may never be completed",
     "main": "index.js",
     "scripts": {
         "bundle": "npx paperback bundle",
