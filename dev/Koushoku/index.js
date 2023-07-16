@@ -1521,7 +1521,34 @@ class Koushoku {
     }
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
-        throw new Error('Not implemented!');
+        const albumNum = metadata?.page ?? 1;
+        let param = '';
+        switch (homepageSectionId) {
+            case 'recent':
+                param = `/browse/page/${albumNum}`;
+                break;
+            case 'popular weekly':
+                param = `/popular/weekly/page/${albumNum}`;
+                break;
+            case 'popular monthly':
+                param = `/popular/monthly/page/${albumNum}`;
+                break;
+            default:
+                throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
+        }
+        const request = App.createRequest({
+            url: `${KoushokuParser_1.DOMAIN}`,
+            method: 'GET',
+            param
+        });
+        const response = await this.requestManager.schedule(request, 1);
+        const $ = this.cheerio.load(response.data);
+        const albums = (0, KoushokuParser_1.getAlbums)($);
+        metadata = !(0, KoushokuParser_1.isLastPage)(albums) ? { page: albumNum + 1 } : undefined;
+        return App.createPagedResults({
+            results: albums,
+            metadata
+        });
     }
     async getMangaDetails(mangaId) {
         const data = await (0, KoushokuParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
@@ -1651,8 +1678,9 @@ async function getPages(id, requestManager, cheerio) {
     return pages;
 }
 exports.getPages = getPages;
-const isLastPage = ($) => {
-    throw new Error('Not implemented!');
+const isLastPage = (albums) => {
+    // max albums displayed per page, need to find better way - last page will have 35 albums for popular sections
+    return albums.length != 35;
 };
 exports.isLastPage = isLastPage;
 
