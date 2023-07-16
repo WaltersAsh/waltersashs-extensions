@@ -103,6 +103,7 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
     return pages;
 }
 
-export const isLastPage = ($: CheerioStatic): boolean => {
-    throw new Error('Not implemented!');
+export const isLastPage = (albums: PartialSourceManga[]): boolean => {
+    // max albums displayed per page, need to find better way - last page will have 35 albums for popular sections
+    return albums.length != 35; 
 };
