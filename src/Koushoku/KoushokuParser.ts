@@ -21,11 +21,9 @@ export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
  
     for (const album of albumGroups) {
         const image = $('img', album).attr('src') ?? '';
-        const titleDetails = $('h3', album);
-        const creator = $('a', titleDetails).first().text() ?? '';
-        const name = $('a', titleDetails).last().text() ?? '';
-        const title = `${creator} - ${name}`;
         const id = $('a', album).attr('href') ?? '';
+        const title = $('a', album).attr('title') ?? '';
+        const artist = $('h3', album).text() ?? '';
 
         if (!id || !title) {
             continue;
@@ -34,6 +32,7 @@ export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
         albums.push(App.createPartialSourceManga({
             mangaId: encodeURIComponent(id),
             image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
+            subtitle: artist,
             title: entities.decodeHTML(title)
         }));
     }
