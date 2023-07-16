@@ -130,8 +130,11 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
             mangaInfo: App.createMangaInfo({
                 titles: data.titles,
                 image: data.image,
-                status: 'Unknown',
+                status: 'Complete',
+                hentai: true,
                 tags: data.tags,
+                author: data.artist,
+                artist: data.artist,
                 desc: ''
             })
         });
@@ -143,8 +146,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         chapters.push(App.createChapter({
             id: data.id,
             name: 'Album',
-            chapNum: 1,
-            time: new Date(),
+            chapNum: 1
         }));
 
         return chapters;

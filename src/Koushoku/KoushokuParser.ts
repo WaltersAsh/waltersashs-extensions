@@ -23,7 +23,7 @@ export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
         const image = $('img', album).attr('src') ?? '';
         const id = $('a', album).attr('href') ?? '';
         const title = $('a', album).attr('title') ?? '';
-        const artist = $('h3', album).text() ?? '';
+        const artist = $('span', album).first().text() ?? '';
 
         if (!id || !title) {
             continue;
@@ -49,41 +49,37 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data as string);
 
-    const title = $('h1', 'section').first().text();
-    const image = $('img', 'div.wrapper').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+    const title = $('img').first().attr('title');
+    const image = $('img').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
+    const artistSection = $('strong:contains("Artist")').parent();
+    const artist = $('span', artistSection).first().text();
 
-    // const descInfo
-    // const tags
+    const tagsElement1 = $('strong:contains("Tag")').first().parent();
+    const tagsElement2 = $('span', tagsElement1).toArray();
 
-    // const tagsToRender: Tag[] = [];
-    // for (const tag of tags) {
-    //     const label
-    //     const id
+    const tagsToRender: Tag[] = [];
+    for (const tag of tagsElement2) {
+        const label = $(tag).text();
+        if (label.match(/^\d/)) continue;
         
-    //     if (!id || !label) {
-    //         continue;
-    //     }
-    //     tagsToRender.push({ id: id.match(REGEX_ASIAN) ? encodeURIComponent(id) : id, label: label });
-    // }
+        if (!label) {
+            continue;
+        }
+        tagsToRender.push({ id: `/tags/${label}`, label: label });
+    }
 
-    // const tagSections: TagSection[] = [createTagSection({
-    //     id: '0',
-    //     label: 'Tags',
-    //     tags: tagsToRender.map(x => createTag(x)) 
-    // })];
-
-    // return {
-    //     id: id,
-    //     titles: [title],
-    //     image: image,
-    //     tags: tagSections,
-    //     desc: desc
-    // };
+    const tagSections: TagSection[] = [App.createTagSection({
+        id: '0',
+        label: 'Tags',
+        tags: tagsToRender.map(x => App.createTag(x)) 
+    })];
 
     return {
         id: id,
-        titles: [title],
-        image: image
+        titles: [entities.decodeHTML(title as string)],
+        image: image,
+        artist: artist,
+        tags: tagSections
     };
 }
 
@@ -97,12 +93,10 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data as string);
     const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
-    console.log('Length: ' + length);
 
     const pages: string[] = [];
     for (let i = 1; i < length + 1; i++) {
         const imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/0${i}.png`: `${DOMAIN}/resampled/${imageId}/${i}.png`;
-        console.log('Rendering: ' + imageLink);
         pages.push(imageLink);
     }
 
