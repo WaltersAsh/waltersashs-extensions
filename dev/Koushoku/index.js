@@ -1714,6 +1714,8 @@ async function getGalleryData(id, requestManager, cheerio) {
 exports.getGalleryData = getGalleryData;
 async function getPages(id, requestManager, cheerio) {
     const imageId = id.slice(10);
+    const pages = [];
+    // Determine page length
     const request = App.createRequest({
         url: `${exports.DOMAIN}/${id}`,
         method: 'GET'
@@ -1721,10 +1723,78 @@ async function getPages(id, requestManager, cheerio) {
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data);
     const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
-    const pages = [];
+    // Determine url formats - probably split into separate method
+    // Double digits scenario 1 - eg. 01.png
+    const requestForUrlDoubleDigitsFormat = App.createRequest({
+        url: `${exports.DOMAIN}/resampled/${imageId}/01.png`,
+        method: 'GET'
+    });
+    const statusDoubleDigits = (await requestManager.schedule(requestForUrlDoubleDigitsFormat, 1)).status;
+    if (statusDoubleDigits === 200) {
+        for (let i = 1; i < length + 1; i++) {
+            // Pages start from 01, 02, 03..09, 10, 11...
+            const imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/0${i}.png` : `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
+            pages.push(imageLink);
+        }
+        return pages;
+    }
+    // Double digits scenario 2 - eg. 01.jpg
+    const requestForUrlDoubleDigitsFormatJpg = App.createRequest({
+        url: `${exports.DOMAIN}/resampled/${imageId}/01.jpg`,
+        method: 'GET'
+    });
+    const statusDoubleDigitsJpg = (await requestManager.schedule(requestForUrlDoubleDigitsFormatJpg, 1)).status;
+    if (statusDoubleDigitsJpg === 200) {
+        for (let i = 1; i < length + 1; i++) {
+            // Pages start from 01, 02, 03..09, 10, 11...
+            const imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/0${i}.jpg` : `${exports.DOMAIN}/resampled/${imageId}/${i}.jpg`;
+            pages.push(imageLink);
+        }
+        return pages;
+    }
+    // Triple digits scenario 1 - eg. 001.png 
+    const requestForUrlTripleDigitsFormat = App.createRequest({
+        url: `${exports.DOMAIN}/resampled/${imageId}/001.png`,
+        method: 'GET'
+    });
+    const statusTripleDigits = (await requestManager.schedule(requestForUrlTripleDigitsFormat, 1)).status;
+    if (statusTripleDigits === 200) {
+        for (let i = 1; i < length + 1; i++) {
+            // Pages start from 001, 002..010, 011..100, 101...
+            let imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/00${i}.png` : `${exports.DOMAIN}/resampled/${imageId}/0${i}.png`;
+            if (i > 99) {
+                imageLink = `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
+            }
+            pages.push(imageLink);
+        }
+        return pages;
+    }
+    // Triple digits scenario 2 - eg. 001.jpg
+    const requestForUrlTripleDigitsFormatJpg = App.createRequest({
+        url: `${exports.DOMAIN}/resampled/${imageId}/001.jpg`,
+        method: 'GET'
+    });
+    const statusTripleDigitsJpg = (await requestManager.schedule(requestForUrlTripleDigitsFormatJpg, 1)).status;
+    if (statusTripleDigitsJpg === 200) {
+        for (let i = 1; i < length + 1; i++) {
+            // Pages start from 001, 002..010, 011..100, 101...
+            let imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/00${i}.jpg` : `${exports.DOMAIN}/resampled/${imageId}/0${i}.jpg`;
+            if (i > 99) {
+                imageLink = `${exports.DOMAIN}/resampled/${imageId}/${i}.jpg`;
+            }
+            pages.push(imageLink);
+        }
+        return pages;
+    }
+    // Title scenario - eg. why%20are%20we%20still%20here%20just%20to%20suffer%3F%20-%20001%20(x3200)%20[Irodori%20Comics].png
+    // [Phantom Pain (Kazuhira Miller)] Why are we still here just to suffer? - [p]001 (x3200)/[x3200] [Diamond Dogs].png)
+    const title = $('h2', 'section#metadata').first().text();
+    const prefix = title.split(']')[0]?.toString();
+    const name = title.split(']')[1]?.toString().split('(')[0]?.toString();
+    const suffix = title.split(']')[1]?.toString().split('(')[1]?.toString();
     for (let i = 1; i < length + 1; i++) {
-        // Pages start from 01, 02, 03..09, 10, 11...
-        const imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/0${i}.png` : `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
+        // Pages start from 1, 2.., 11, 12..100, 101...
+        const imageLink = `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
         pages.push(imageLink);
     }
     return pages;
