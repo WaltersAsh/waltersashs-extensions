@@ -11,8 +11,38 @@ export const DOMAIN = 'https://ksk.moe';
 export const REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 export const REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
 
-export async function getTags(requestManager: RequestManager, cheerio: CheerioAPI): Promise<Tag[][]> {
-    throw new Error('Not implemented!');
+export async function getTags(requestManager: RequestManager, cheerio: CheerioAPI): Promise<Tag[]> {
+    const request = App.createRequest({
+        url: `${DOMAIN}/tags/page/1`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data as string);
+    const tagElements = $('main', 'main').children().toArray();
+
+    const request2 = App.createRequest({
+        url: `${DOMAIN}/tags/page/2`,
+        method: 'GET'
+    });
+    const data2 = await requestManager.schedule(request2, 1);
+    const $$ = cheerio.load(data2.data as string);
+    const tagElements2 = $$('main', 'main').children().toArray();
+    
+    const tags: Tag[] = [];
+
+    for (const element of tagElements) {
+        const id = $('a', element).attr('href') ?? '';
+        const label = $('span', element).first().text() ?? '';
+        tags.push(App.createTag({ id, label }));
+    }
+
+    for (const element of tagElements2) {
+        const id = $$('a', element).attr('href') ?? '';
+        const label = $$('span', element).first().text() ?? '';
+        tags.push(App.createTag({ id, label }));
+    }
+
+    return tags;
 }
 
 export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
@@ -49,7 +79,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data as string);
 
-    const title = $('img').first().attr('title');
+    const title = $('h2', 'section#metadata').first().text();
     const image = $('img').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
     const artistSection = $('strong:contains("Artist")').parent();
     const artist = $('span', artistSection).first().text();
@@ -65,7 +95,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
         if (!label) {
             continue;
         }
-        tagsToRender.push({ id: `/tags/${label}`, label: label });
+        tagsToRender.push({ id: `${DOMAIN}/tags/${label}`, label: label });
     }
 
     const tagSections: TagSection[] = [App.createTagSection({
@@ -96,6 +126,7 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
 
     const pages: string[] = [];
     for (let i = 1; i < length + 1; i++) {
+        // Pages start from 01, 02, 03..09, 10, 11...
         const imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/0${i}.png`: `${DOMAIN}/resampled/${imageId}/${i}.png`;
         pages.push(imageLink);
     }

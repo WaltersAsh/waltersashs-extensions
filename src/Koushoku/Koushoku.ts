@@ -76,7 +76,13 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
     }
 
     async getSearchTags(): Promise<TagSection[]> {
-        throw new Error('Not implemented!');
+        const tags = await getTags(this.requestManager, this.cheerio);
+       
+        return [
+            App.createTagSection({
+                id: 'tags', label: 'Tags', tags: tags ?? []
+            })
+        ];
     }
 
     async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
@@ -192,6 +198,29 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
-        throw new Error('Not implemented!');
+        const searchPage: number = metadata?.page ?? 1;
+
+        let request;
+        if (query.title) {
+            request = App.createRequest({
+                url: `${DOMAIN}/browse/page/${searchPage}?s=${query.title}`,
+                method: 'GET'
+            });
+        } else {
+            request = App.createRequest({
+                url: `${DOMAIN}${query.includedTags?.map(x => x.id)}/page/${searchPage}`,
+                method: 'GET'
+            });
+        }
+        const response = await this.requestManager.schedule(request, 1);
+        const $ = this.cheerio.load(response.data as string);
+
+        const albums = getAlbums($);
+        metadata = !isLastPage(albums) ? {page: searchPage + albums.length} : undefined;
+        
+        return App.createPagedResults({
+            results: albums,
+            metadata
+        });
     }
 }
