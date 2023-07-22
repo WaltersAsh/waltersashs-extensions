@@ -1482,7 +1482,12 @@ class Koushoku {
         return `${KoushokuParser_1.DOMAIN}/${mangaId}`;
     }
     async getSearchTags() {
-        throw new Error('Not implemented!');
+        const tags = await (0, KoushokuParser_1.getTags)(this.requestManager, this.cheerio);
+        return [
+            App.createTagSection({
+                id: 'tags', label: 'Tags', tags: tags ?? []
+            })
+        ];
     }
     async getHomePageSections(sectionCallback) {
         const requestForRecentlyAdded = App.createRequest({
@@ -1585,7 +1590,28 @@ class Koushoku {
     }
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query, metadata) {
-        throw new Error('Not implemented!');
+        const searchPage = metadata?.page ?? 1;
+        let request;
+        if (query.title) {
+            request = App.createRequest({
+                url: `${KoushokuParser_1.DOMAIN}/browse/page/${searchPage}?s=${query.title}`,
+                method: 'GET'
+            });
+        }
+        else {
+            request = App.createRequest({
+                url: `${KoushokuParser_1.DOMAIN}${query.includedTags?.map(x => x.id)}/page/${searchPage}`,
+                method: 'GET'
+            });
+        }
+        const response = await this.requestManager.schedule(request, 1);
+        const $ = this.cheerio.load(response.data);
+        const albums = (0, KoushokuParser_1.getAlbums)($);
+        metadata = !(0, KoushokuParser_1.isLastPage)(albums) ? { page: searchPage + albums.length } : undefined;
+        return App.createPagedResults({
+            results: albums,
+            metadata
+        });
     }
 }
 exports.Koushoku = Koushoku;
@@ -1599,7 +1625,32 @@ exports.DOMAIN = 'https://ksk.moe';
 exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
 exports.REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
 async function getTags(requestManager, cheerio) {
-    throw new Error('Not implemented!');
+    const request = App.createRequest({
+        url: `${exports.DOMAIN}/tags/page/1`,
+        method: 'GET'
+    });
+    const data = await requestManager.schedule(request, 1);
+    const $ = cheerio.load(data.data);
+    const tagElements = $('main', 'main').children().toArray();
+    const request2 = App.createRequest({
+        url: `${exports.DOMAIN}/tags/page/2`,
+        method: 'GET'
+    });
+    const data2 = await requestManager.schedule(request2, 1);
+    const $$ = cheerio.load(data2.data);
+    const tagElements2 = $$('main', 'main').children().toArray();
+    const tags = [];
+    for (const element of tagElements) {
+        const id = $('a', element).attr('href') ?? '';
+        const label = $('span', element).first().text() ?? '';
+        tags.push(App.createTag({ id, label }));
+    }
+    for (const element of tagElements2) {
+        const id = $$('a', element).attr('href') ?? '';
+        const label = $$('span', element).first().text() ?? '';
+        tags.push(App.createTag({ id, label }));
+    }
+    return tags;
 }
 exports.getTags = getTags;
 function getAlbums($) {
@@ -1631,7 +1682,7 @@ async function getGalleryData(id, requestManager, cheerio) {
     });
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data);
-    const title = $('img').first().attr('title');
+    const title = $('h2', 'section#metadata').first().text();
     const image = $('img').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
     const artistSection = $('strong:contains("Artist")').parent();
     const artist = $('span', artistSection).first().text();
@@ -1645,7 +1696,7 @@ async function getGalleryData(id, requestManager, cheerio) {
         if (!label) {
             continue;
         }
-        tagsToRender.push({ id: `/tags/${label}`, label: label });
+        tagsToRender.push({ id: `${exports.DOMAIN}/tags/${label}`, label: label });
     }
     const tagSections = [App.createTagSection({
             id: '0',
@@ -1672,6 +1723,7 @@ async function getPages(id, requestManager, cheerio) {
     const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
     const pages = [];
     for (let i = 1; i < length + 1; i++) {
+        // Pages start from 01, 02, 03..09, 10, 11...
         const imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/0${i}.png` : `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
         pages.push(imageLink);
     }
