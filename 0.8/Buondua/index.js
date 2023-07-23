@@ -1477,7 +1477,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SOURCE_VERSION = void 0;
 const types_1 = require("@paperback/types");
 const BuonduaBaseParser_1 = require("./BuonduaBaseParser");
-exports.SOURCE_VERSION = '1.1.0';
+exports.SOURCE_VERSION = '2.0.0';
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15';
 class Buondua {
     constructor(cheerio) {
