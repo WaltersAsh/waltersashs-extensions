@@ -1439,7 +1439,7 @@ exports.Koushoku = exports.KoushokuInfo = void 0;
 const types_1 = require("@paperback/types");
 const KoushokuParser_1 = require("./KoushokuParser");
 exports.KoushokuInfo = {
-    version: '1.0.0',
+    version: '1.0.1',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1540,7 +1540,7 @@ class Koushoku {
         });
         const responseForRecentManga = await this.requestManager.schedule(requestForRecentManga, 1);
         const $recentManga = this.cheerio.load(responseForRecentManga.data);
-        const recentMangaSection = App.createHomeSection({ id: 'recent Manga', title: 'Recent Manga',
+        const recentMangaSection = App.createHomeSection({ id: 'recent manga', title: 'Recent Manga',
             containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
         const recentMangaAlbums = (0, KoushokuParser_1.getAlbums)($recentManga);
         recentMangaSection.items = recentMangaAlbums;
@@ -1570,6 +1570,15 @@ class Koushoku {
                 break;
             case 'popular monthly':
                 param = `/popular/monthly/page/${albumNum}`;
+                break;
+            case 'recent doujins':
+                param = `/browse/page/${albumNum}?cat=2&sort=16`;
+                break;
+            case 'recent manga':
+                param = `/browse/page/${albumNum}?cat=1`;
+                break;
+            case 'recent illustrations':
+                param = `/browse/page/${albumNum}?cat=4`;
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
