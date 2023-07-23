@@ -95,7 +95,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
         if (!label) {
             continue;
         }
-        tagsToRender.push({ id: `${DOMAIN}/tags/${label}`, label: label });
+        tagsToRender.push({ id: `/tags/${encodeURIComponent(label)}`, label: label });
     }
 
     const tagSections: TagSection[] = [App.createTagSection({
@@ -125,103 +125,43 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data as string);
     const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
+    const urlPieces = $('img').first().attr('src')?.split('/') ?? '';
+    const suffix = urlPieces[urlPieces?.length - 1] ?? '';
+    const imageFormat = suffix.slice(suffix.length, 3) ? 'jpg' : 'png';
+    const pageNumFormat = suffix.split('.')[0]?.length;
 
-    // TODO: Redo this whole part
-    // Solution is to grab thumbnail image in album and derive url format from there,
-    // no need to do this brute forcing
-    // Determine url formats - probably split into separate method
-
-    // Double digits scenario 1 - eg. 01.png
-    const requestForUrlDoubleDigitsFormat = App.createRequest({
-        url: `${DOMAIN}/resampled/${imageId}/01.png`,
-        method: 'GET'
-    });
-    const statusDoubleDigits = (await requestManager.schedule(requestForUrlDoubleDigitsFormat, 1)).status;
-    if (statusDoubleDigits === 200) {
+    if (pageNumFormat === 2) {
         for (let i = 1; i < length + 1; i++) {
             // Pages start from 01, 02, 03..09, 10, 11...
-            const imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/0${i}.png`: `${DOMAIN}/resampled/${imageId}/${i}.png`;
+            const imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/0${i}.${imageFormat}`: `${DOMAIN}/resampled/${imageId}/${i}.${imageFormat}`;
             pages.push(imageLink);
         }
-        return pages;
-    }
-
-    // Double digits scenario 2 - eg. 01.jpg
-    const requestForUrlDoubleDigitsFormatJpg = App.createRequest({
-        url: `${DOMAIN}/resampled/${imageId}/01.jpg`,
-        method: 'GET'
-    });
-    const statusDoubleDigitsJpg = (await requestManager.schedule(requestForUrlDoubleDigitsFormatJpg, 1)).status;
-    if (statusDoubleDigitsJpg === 200) {
-        for (let i = 1; i < length + 1; i++) {
-            // Pages start from 01, 02, 03..09, 10, 11...
-            const imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/0${i}.jpg`: `${DOMAIN}/resampled/${imageId}/${i}.jpg`;
-            pages.push(imageLink);
-        }
-        return pages;
-    }
-
-    // Triple digits scenario 1 - eg. 001.png 
-    const requestForUrlTripleDigitsFormat = App.createRequest({
-        url: `${DOMAIN}/resampled/${imageId}/001.png`,
-        method: 'GET'
-    });
-    const statusTripleDigits = (await requestManager.schedule(requestForUrlTripleDigitsFormat, 1)).status;
-    if (statusTripleDigits === 200) {
+    } else if (pageNumFormat === 3) {
         for (let i = 1; i < length + 1; i++) {
             // Pages start from 001, 002..010, 011..100, 101...
-            let imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/00${i}.png`: `${DOMAIN}/resampled/${imageId}/0${i}.png`;
+            let imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/00${i}.${imageFormat}`: `${DOMAIN}/resampled/${imageId}/0${i}.${imageFormat}`;
             if (i > 99) {
-                imageLink = `${DOMAIN}/resampled/${imageId}/${i}.png`;
+                imageLink = `${DOMAIN}/resampled/${imageId}/${i}.${imageFormat}`;
             }
             pages.push(imageLink);
         }
-        return pages;
-    }
+    } else {
+        const urlFormat = urlPieces[urlPieces.length - 1];
+        const firstHalf = urlFormat?.split('001')[0] ?? '';
+        const lastHalf = urlFormat?.split('001')[1] ?? '';
 
-    // Triple digits scenario 2 - eg. 001.jpg
-    const requestForUrlTripleDigitsFormatJpg = App.createRequest({
-        url: `${DOMAIN}/resampled/${imageId}/001.jpg`,
-        method: 'GET'
-    });
-    const statusTripleDigitsJpg = (await requestManager.schedule(requestForUrlTripleDigitsFormatJpg, 1)).status;
-    if (statusTripleDigitsJpg === 200) {
         for (let i = 1; i < length + 1; i++) {
             // Pages start from 001, 002..010, 011..100, 101...
-            let imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/00${i}.jpg`: `${DOMAIN}/resampled/${imageId}/0${i}.jpg`;
+            let pageNumFormat = i < 10 ? `00${i}` : `0${i}`;
             if (i > 99) {
-                imageLink = `${DOMAIN}/resampled/${imageId}/${i}.jpg`;
+                pageNumFormat = `${i}`;
             }
+            const finalFormat = firstHalf?.concat(pageNumFormat, lastHalf);
+            const imageLink = `${DOMAIN}/resampled/${imageId}/${finalFormat}`;
             pages.push(imageLink);
         }
-        return pages;
     }
 
-    // eslint-disable-next-line max-len
-    // Title scenario - eg. [Phantom%20Pain](Kazuhira%20Miller)]%20Why%20are%20we%20still%20here%20just%20to%20suffer%3F%20-%20001%20(x3200)%20[Diamond%20Dogs].png
-    // [Phantom Pain (Kazuhira Miller)] Why are we still here just to suffer? - [p]001 (x3200)/[x3200] [Diamond Dogs].png
-    const title = $('h2', 'section#metadata').first().text();
-
-    const prefix = encodeURI(title.split(']')[0]?.toString() + ']');
-    const name = encodeURI(title.split(']')[1]?.toString().split('(')[0]?.toString() ?? '');
-    const suffix = encodeURI(('(' + title.split(']')[1]?.toString().split('(')[1]?.toString() + ']').replace('FAKKU & ', ''));
-
-    console.log(prefix);
-    console.log(name);
-    console.log(suffix);
-
-    for (let i = 1; i < length + 1; i++) {
-        // Pages start from 1, 2.., 11, 12..100, 101...
-        let pageFormat = encodeURI(`${'- '}00${i}${' '}`);
-        pageFormat = i < 10 ? encodeURI(`${'- '}00${i}${' '}`): encodeURI(`${'- '}0${i}${' '}`);
-        if (i > 99) {
-            pageFormat = encodeURI(`${'- '}${i}${' '}`);
-        }
-
-        const imageLink = `${DOMAIN}/resampled/${imageId}/${prefix}${name}${pageFormat}${suffix}.png`;
-        console.log(imageLink);
-        pages.push(imageLink);
-    }
     return pages;
 }
 
