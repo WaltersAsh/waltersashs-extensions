@@ -1661,11 +1661,9 @@ exports.Koushoku = Koushoku;
 },{"./KoushokuParser":71,"@paperback/types":61}],71:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.REGEX_PATH_NAME = exports.REGEX_ASIAN = exports.DOMAIN = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
 const entities = require("entities");
 exports.DOMAIN = 'https://ksk.moe';
-exports.REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
-exports.REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
 async function getTags(requestManager, cheerio) {
     const request = App.createRequest({
         url: `${exports.DOMAIN}/tags/page/1`,
