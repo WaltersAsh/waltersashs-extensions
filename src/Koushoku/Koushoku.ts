@@ -121,6 +121,42 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         const popularMonthlyAlbums = getAlbums($popularMonthly);
         popularMonthlySection.items = popularMonthlyAlbums;
         sectionCallback(popularMonthlySection);
+
+        const requestForRecentDoujin = App.createRequest({
+            url: `${DOMAIN}/browse?cat=2&sort=16`,
+            method: 'GET'
+        });
+        const responseForRecentDoujin = await this.requestManager.schedule(requestForRecentDoujin, 1);
+        const $recentDoujin = this.cheerio.load(responseForRecentDoujin.data as string);
+        const recentDoujinSection = App.createHomeSection({id: 'recent doujins', title: 'Recent Doujins', 
+            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
+        const recentDoujinAlbums = getAlbums($recentDoujin);
+        recentDoujinSection.items = recentDoujinAlbums;
+        sectionCallback(recentDoujinSection);
+
+        const requestForRecentManga = App.createRequest({
+            url: `${DOMAIN}/browse?cat=1`,
+            method: 'GET'
+        });
+        const responseForRecentManga = await this.requestManager.schedule(requestForRecentManga, 1);
+        const $recentManga = this.cheerio.load(responseForRecentManga.data as string);
+        const recentMangaSection = App.createHomeSection({id: 'recent Manga', title: 'Recent Manga', 
+            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
+        const recentMangaAlbums = getAlbums($recentManga);
+        recentMangaSection.items = recentMangaAlbums;
+        sectionCallback(recentMangaSection);
+
+        const requestForRecentIllustrations = App.createRequest({
+            url: `${DOMAIN}/browse?cat=4`,
+            method: 'GET'
+        });
+        const responseForRecentIllustrations = await this.requestManager.schedule(requestForRecentIllustrations, 1);
+        const $recentIllustrations = this.cheerio.load(responseForRecentIllustrations.data as string);
+        const recentIllustrationsSection = App.createHomeSection({id: 'recent illustrations', title: 'Recent Illustrations', 
+            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
+        const recentIllustrationsAlbums = getAlbums($recentIllustrations);
+        recentIllustrationsSection.items = recentIllustrationsAlbums;
+        sectionCallback(recentIllustrationsSection);
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any

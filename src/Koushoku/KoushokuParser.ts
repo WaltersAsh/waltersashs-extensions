@@ -126,6 +126,9 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
     const $ = cheerio.load(data.data as string);
     const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
 
+    // TODO: Redo this whole part
+    // Solution is to grab thumbnail image in album and derive url format from there,
+    // no need to do this brute forcing
     // Determine url formats - probably split into separate method
 
     // Double digits scenario 1 - eg. 01.png
@@ -194,16 +197,29 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
         return pages;
     }
 
-    // Title scenario - eg. why%20are%20we%20still%20here%20just%20to%20suffer%3F%20-%20001%20(x3200)%20[Irodori%20Comics].png
-    // [Phantom Pain (Kazuhira Miller)] Why are we still here just to suffer? - [p]001 (x3200)/[x3200] [Diamond Dogs].png)
+    // eslint-disable-next-line max-len
+    // Title scenario - eg. [Phantom%20Pain](Kazuhira%20Miller)]%20Why%20are%20we%20still%20here%20just%20to%20suffer%3F%20-%20001%20(x3200)%20[Diamond%20Dogs].png
+    // [Phantom Pain (Kazuhira Miller)] Why are we still here just to suffer? - [p]001 (x3200)/[x3200] [Diamond Dogs].png
     const title = $('h2', 'section#metadata').first().text();
-    const prefix = title.split(']')[0]?.toString();
-    const name = title.split(']')[1]?.toString().split('(')[0]?.toString();
-    const suffix = title.split(']')[1]?.toString().split('(')[1]?.toString();
+
+    const prefix = encodeURI(title.split(']')[0]?.toString() + ']');
+    const name = encodeURI(title.split(']')[1]?.toString().split('(')[0]?.toString() ?? '');
+    const suffix = encodeURI(('(' + title.split(']')[1]?.toString().split('(')[1]?.toString() + ']').replace('FAKKU & ', ''));
+
+    console.log(prefix);
+    console.log(name);
+    console.log(suffix);
 
     for (let i = 1; i < length + 1; i++) {
         // Pages start from 1, 2.., 11, 12..100, 101...
-        const imageLink = `${DOMAIN}/resampled/${imageId}/${i}.png`;
+        let pageFormat = encodeURI(`${'- '}00${i}${' '}`);
+        pageFormat = i < 10 ? encodeURI(`${'- '}00${i}${' '}`): encodeURI(`${'- '}0${i}${' '}`);
+        if (i > 99) {
+            pageFormat = encodeURI(`${'- '}${i}${' '}`);
+        }
+
+        const imageLink = `${DOMAIN}/resampled/${imageId}/${prefix}${name}${pageFormat}${suffix}.png`;
+        console.log(imageLink);
         pages.push(imageLink);
     }
     return pages;
