@@ -29,7 +29,7 @@ import {
 } from './KoushokuParser';
 
 export const KoushokuInfo: SourceInfo = {
-    version: '1.0.0',
+    version: '1.0.1',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -140,7 +140,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         });
         const responseForRecentManga = await this.requestManager.schedule(requestForRecentManga, 1);
         const $recentManga = this.cheerio.load(responseForRecentManga.data as string);
-        const recentMangaSection = App.createHomeSection({id: 'recent Manga', title: 'Recent Manga', 
+        const recentMangaSection = App.createHomeSection({id: 'recent manga', title: 'Recent Manga', 
             containsMoreItems: true, type: HomeSectionType.singleRowNormal});
         const recentMangaAlbums = getAlbums($recentManga);
         recentMangaSection.items = recentMangaAlbums;
@@ -173,6 +173,15 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
                 break;
             case 'popular monthly':
                 param = `/popular/monthly/page/${albumNum}`;
+                break;
+            case 'recent doujins':
+                param = `/browse/page/${albumNum}?cat=2&sort=16`;
+                break;
+            case 'recent manga':
+                param = `/browse/page/${albumNum}?cat=1`;
+                break;
+            case 'recent illustrations':
+                param = `/browse/page/${albumNum}?cat=4`;
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
