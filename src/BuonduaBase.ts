@@ -21,7 +21,7 @@ import {
     isLastPage
 } from './BuonduaBaseParser';
 
-export const SOURCE_VERSION = '1.1.0';
+export const SOURCE_VERSION = '2.0.0';
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15';
 
 export default abstract class Buondua implements SearchResultsProviding, MangaProviding, ChapterProviding, HomePageSectionsProviding {
