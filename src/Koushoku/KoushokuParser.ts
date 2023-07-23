@@ -8,8 +8,6 @@ import {
 import entities = require('entities');
 
 export const DOMAIN = 'https://ksk.moe';
-export const REGEX_ASIAN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u3131-\uD79D]/;
-export const REGEX_PATH_NAME = /^(?:(?:\w{3,5}:)?\/\/[^/]+)?(?:\/|^)((?:[^#./:?\n\r]+\/?)+(?=\?|#|$|\.|\/))/;
 
 export async function getTags(requestManager: RequestManager, cheerio: CheerioAPI): Promise<Tag[]> {
     const request = App.createRequest({
