@@ -248,7 +248,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         let request;
         if (query.title) {
             request = App.createRequest({
-                url: `${DOMAIN}/browse/page/${searchPage}?s=${query.title}`,
+                url: `${DOMAIN}/browse/page/${searchPage}?s=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
         } else {
