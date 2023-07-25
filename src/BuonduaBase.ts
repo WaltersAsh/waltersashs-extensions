@@ -29,7 +29,7 @@ export default abstract class Buondua implements SearchResultsProviding, MangaPr
     constructor(private cheerio: CheerioAPI) { }
 
     readonly requestManager = App.createRequestManager({
-        requestsPerSecond: 4,
+        requestsPerSecond: 5,
         requestTimeout: 15000,
         interceptor: {
             interceptRequest: async (request: Request): Promise<Request> => {
