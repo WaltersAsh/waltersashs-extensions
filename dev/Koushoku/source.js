@@ -1439,7 +1439,7 @@ exports.Koushoku = exports.KoushokuInfo = void 0;
 const types_1 = require("@paperback/types");
 const KoushokuParser_1 = require("./KoushokuParser");
 exports.KoushokuInfo = {
-    version: '1.0.1',
+    version: '1.0.3',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
