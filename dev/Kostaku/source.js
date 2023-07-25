@@ -1444,7 +1444,7 @@ class Buondua {
     constructor(cheerio) {
         this.cheerio = cheerio;
         this.requestManager = App.createRequestManager({
-            requestsPerSecond: 4,
+            requestsPerSecond: 5,
             requestTimeout: 15000,
             interceptor: {
                 interceptRequest: async (request) => {

@@ -1661,7 +1661,7 @@ exports.Koushoku = Koushoku;
 },{"./KoushokuParser":71,"@paperback/types":61}],71:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
+exports.testImageLink = exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
 const entities = require("entities");
 exports.DOMAIN = 'https://ksk.moe';
 async function getTags(requestManager, cheerio) {
@@ -1765,23 +1765,26 @@ async function getPages(id, requestManager, cheerio) {
     const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
     const urlPieces = $('img').first().attr('src')?.split('/') ?? '';
     const suffix = urlPieces[urlPieces?.length - 1] ?? '';
-    const imageFormat = suffix.slice(suffix.length, 3) ? 'jpg' : 'png';
+    // Image format is not guranteed
+    // const imageFormat = suffix.slice(suffix.length, 3) ? 'jpg' : 'png';
     const pageNumFormat = suffix.split('.')[0]?.length;
     if (pageNumFormat === 2) {
         for (let i = 1; i < length + 1; i++) {
             // Pages start from 01, 02, 03..09, 10, 11...
-            const imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/0${i}.${imageFormat}` : `${exports.DOMAIN}/resampled/${imageId}/${i}.${imageFormat}`;
-            pages.push(imageLink);
+            const imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/0${i}.png` : `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
+            const testedImageLink = await testImageLink(imageLink, requestManager);
+            pages.push(testedImageLink);
         }
     }
     else if (pageNumFormat === 3) {
         for (let i = 1; i < length + 1; i++) {
             // Pages start from 001, 002..010, 011..100, 101...
-            let imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/00${i}.${imageFormat}` : `${exports.DOMAIN}/resampled/${imageId}/0${i}.${imageFormat}`;
+            let imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/00${i}.png` : `${exports.DOMAIN}/resampled/${imageId}/0${i}.png`;
             if (i > 99) {
-                imageLink = `${exports.DOMAIN}/resampled/${imageId}/${i}.${imageFormat}`;
+                imageLink = `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
             }
-            pages.push(imageLink);
+            const testedImageLink = await testImageLink(imageLink, requestManager);
+            pages.push(testedImageLink);
         }
     }
     else {
@@ -1807,6 +1810,19 @@ const isLastPage = (albums) => {
     return albums.length != 35;
 };
 exports.isLastPage = isLastPage;
+async function testImageLink(imageLink, requestManager) {
+    const jpgImageLink = imageLink.replace(/.{0,3}$/, '') + 'jpg';
+    const request = App.createRequest({
+        url: imageLink,
+        method: 'GET'
+    });
+    const status = (await requestManager.schedule(request, 1)).status;
+    if (status !== 200) {
+        return jpgImageLink;
+    }
+    return imageLink;
+}
+exports.testImageLink = testImageLink;
 
 },{"entities":69}]},{},[70])(70)
 });
