@@ -29,7 +29,7 @@ import {
 } from './KoushokuParser';
 
 export const KoushokuInfo: SourceInfo = {
-    version: '1.0.1',
+    version: '1.0.3',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
