@@ -1636,7 +1636,7 @@ class Koushoku {
         let request;
         if (query.title) {
             request = App.createRequest({
-                url: `${KoushokuParser_1.DOMAIN}/browse/page/${searchPage}?s=${query.title}`,
+                url: `${KoushokuParser_1.DOMAIN}/browse/page/${searchPage}?s=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
         }
