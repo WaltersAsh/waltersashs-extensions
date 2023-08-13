@@ -1439,7 +1439,7 @@ exports.Koushoku = exports.KoushokuInfo = void 0;
 const types_1 = require("@paperback/types");
 const KoushokuParser_1 = require("./KoushokuParser");
 exports.KoushokuInfo = {
-    version: '1.0.3',
+    version: '1.0.4',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1664,6 +1664,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.testImageLink = exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
 const entities = require("entities");
 exports.DOMAIN = 'https://ksk.moe';
+const REGEX_PAGE = /[0-9]+(.(jpg|png))/g;
 async function getTags(requestManager, cheerio) {
     const request = App.createRequest({
         url: `${exports.DOMAIN}/tags/page/1`,
@@ -1765,26 +1766,23 @@ async function getPages(id, requestManager, cheerio) {
     const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
     const urlPieces = $('img').first().attr('src')?.split('/') ?? '';
     const suffix = urlPieces[urlPieces?.length - 1] ?? '';
+    const pagesRequest = App.createRequest({
+        url: `${exports.DOMAIN}/read${id.slice(7)}/1`,
+        method: 'GET'
+    });
+    const pagesData = await requestManager.schedule(pagesRequest, 1);
+    const $$ = cheerio.load(pagesData.data, { xmlMode: true });
     // Image format is not guranteed
     // const imageFormat = suffix.slice(suffix.length, 3) ? 'jpg' : 'png';
     const pageNumFormat = suffix.split('.')[0]?.length;
-    if (pageNumFormat === 2) {
-        for (let i = 1; i < length + 1; i++) {
-            // Pages start from 01, 02, 03..09, 10, 11...
-            const imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/0${i}.png` : `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
-            const testedImageLink = await testImageLink(imageLink, requestManager);
-            pages.push(testedImageLink);
-        }
-    }
-    else if (pageNumFormat === 3) {
-        for (let i = 1; i < length + 1; i++) {
-            // Pages start from 001, 002..010, 011..100, 101...
-            let imageLink = i < 10 ? `${exports.DOMAIN}/resampled/${imageId}/00${i}.png` : `${exports.DOMAIN}/resampled/${imageId}/0${i}.png`;
-            if (i > 99) {
-                imageLink = `${exports.DOMAIN}/resampled/${imageId}/${i}.png`;
-            }
-            const testedImageLink = await testImageLink(imageLink, requestManager);
-            pages.push(testedImageLink);
+    // Extract page nums from script
+    const pageNums = $$('script[type$=javascript]').last().toString();
+    const unsortedPageNumsList = pageNums.matchAll(REGEX_PAGE);
+    const pageNumsList = [...new Set(Array.from(unsortedPageNumsList, x => x[0]))];
+    if (pageNumFormat === 2 || pageNumFormat === 3) {
+        for (let i = 0; i < length; i++) {
+            const imageLink = `${exports.DOMAIN}/resampled/${imageId}/${pageNumsList[i]}`;
+            pages.push(imageLink);
         }
     }
     else {
