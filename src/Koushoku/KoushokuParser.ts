@@ -8,6 +8,7 @@ import {
 import entities = require('entities');
 
 export const DOMAIN = 'https://ksk.moe';
+const REGEX_PAGE = /[0-9]+(.(jpg|png))/g;
 
 export async function getTags(requestManager: RequestManager, cheerio: CheerioAPI): Promise<Tag[]> {
     const request = App.createRequest({
@@ -125,22 +126,26 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
     const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
     const urlPieces = $('img').first().attr('src')?.split('/') ?? '';
     const suffix = urlPieces[urlPieces?.length - 1] ?? '';
-    const imageFormat = suffix.slice(suffix.length, 3) ? 'jpg' : 'png';
+
+    const pagesRequest = App.createRequest({
+        url: `${DOMAIN}/read${id.slice(7)}/1`,
+        method: 'GET'
+    });
+    const pagesData = await requestManager.schedule(pagesRequest, 1);
+    const $$ = cheerio.load(pagesData.data as string, {xmlMode: true});
+
+    // Image format is not guranteed
+    // const imageFormat = suffix.slice(suffix.length, 3) ? 'jpg' : 'png';
     const pageNumFormat = suffix.split('.')[0]?.length;
 
-    if (pageNumFormat === 2) {
-        for (let i = 1; i < length + 1; i++) {
-            // Pages start from 01, 02, 03..09, 10, 11...
-            const imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/0${i}.${imageFormat}`: `${DOMAIN}/resampled/${imageId}/${i}.${imageFormat}`;
-            pages.push(imageLink);
-        }
-    } else if (pageNumFormat === 3) {
-        for (let i = 1; i < length + 1; i++) {
-            // Pages start from 001, 002..010, 011..100, 101...
-            let imageLink = i < 10 ? `${DOMAIN}/resampled/${imageId}/00${i}.${imageFormat}`: `${DOMAIN}/resampled/${imageId}/0${i}.${imageFormat}`;
-            if (i > 99) {
-                imageLink = `${DOMAIN}/resampled/${imageId}/${i}.${imageFormat}`;
-            }
+    // Extract page nums from script
+    const pageNums = $$('script[type$=javascript]').last().toString();
+    const unsortedPageNumsList = pageNums.matchAll(REGEX_PAGE);
+    const pageNumsList = [...new Set(Array.from(unsortedPageNumsList, x => x[0]))];
+
+    if (pageNumFormat === 2 || pageNumFormat === 3) {
+        for (let i = 0; i < length; i++) {
+            const imageLink = `${DOMAIN}/resampled/${imageId}/${pageNumsList[i]}`;
             pages.push(imageLink);
         }
     } else {
@@ -167,3 +172,19 @@ export const isLastPage = (albums: PartialSourceManga[]): boolean => {
     // max albums displayed per page, need to find better way - last page will have 35 albums for popular sections
     return albums.length != 35; 
 };  
+
+export async function testImageLink(imageLink: string, requestManager: RequestManager): Promise<string> {
+    const jpgImageLink = imageLink.replace(/.{0,3}$/, '') + 'jpg';
+    
+    const request = App.createRequest({
+        url: imageLink,
+        method: 'GET'
+    });
+
+    const status = (await requestManager.schedule(request, 1)).status;
+    if (status !== 200) {
+        return jpgImageLink;
+    }
+
+    return imageLink;
+}
