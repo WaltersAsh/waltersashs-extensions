@@ -29,7 +29,7 @@ import {
 } from './KoushokuParser';
 
 export const KoushokuInfo: SourceInfo = {
-    version: '1.0.4',
+    version: '2.0.0',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -87,7 +87,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
 
     async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
         const requestForRecentlyAdded = App.createRequest({
-            url: `${DOMAIN}/browse`,
+            url: `${DOMAIN}`,
             method: 'GET'
         });
         const responseForRecentlyAdded = await this.requestManager.schedule(requestForRecentlyAdded, 1);
@@ -97,66 +97,6 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         const recentlyAddedAlbums = getAlbums($recentlyAdded);
         recentlyAddedAlbumsSection.items = recentlyAddedAlbums;
         sectionCallback(recentlyAddedAlbumsSection);
-
-        const requestForPopularWeekly = App.createRequest({
-            url: `${DOMAIN}/popular/weekly`,
-            method: 'GET'
-        });
-        const responseForPopularWeekly = await this.requestManager.schedule(requestForPopularWeekly, 1);
-        const $popularWeekly = this.cheerio.load(responseForPopularWeekly.data as string);
-        const popularWeeklySection = App.createHomeSection({id: 'popular weekly', title: 'Popular This Week', 
-            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
-        const popularWeeklyAlbums = getAlbums($popularWeekly);
-        popularWeeklySection.items = popularWeeklyAlbums;
-        sectionCallback(popularWeeklySection);
-
-        const requestForPopularMonthly = App.createRequest({
-            url: `${DOMAIN}/popular/monthly`,
-            method: 'GET'
-        });
-        const responseForPopularMonthly = await this.requestManager.schedule(requestForPopularMonthly, 1);
-        const $popularMonthly = this.cheerio.load(responseForPopularMonthly.data as string);
-        const popularMonthlySection = App.createHomeSection({id: 'popular monthly', title: 'Popular This Month', 
-            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
-        const popularMonthlyAlbums = getAlbums($popularMonthly);
-        popularMonthlySection.items = popularMonthlyAlbums;
-        sectionCallback(popularMonthlySection);
-
-        const requestForRecentDoujin = App.createRequest({
-            url: `${DOMAIN}/browse?cat=2&sort=16`,
-            method: 'GET'
-        });
-        const responseForRecentDoujin = await this.requestManager.schedule(requestForRecentDoujin, 1);
-        const $recentDoujin = this.cheerio.load(responseForRecentDoujin.data as string);
-        const recentDoujinSection = App.createHomeSection({id: 'recent doujins', title: 'Recent Doujins', 
-            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
-        const recentDoujinAlbums = getAlbums($recentDoujin);
-        recentDoujinSection.items = recentDoujinAlbums;
-        sectionCallback(recentDoujinSection);
-
-        const requestForRecentManga = App.createRequest({
-            url: `${DOMAIN}/browse?cat=1`,
-            method: 'GET'
-        });
-        const responseForRecentManga = await this.requestManager.schedule(requestForRecentManga, 1);
-        const $recentManga = this.cheerio.load(responseForRecentManga.data as string);
-        const recentMangaSection = App.createHomeSection({id: 'recent manga', title: 'Recent Manga', 
-            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
-        const recentMangaAlbums = getAlbums($recentManga);
-        recentMangaSection.items = recentMangaAlbums;
-        sectionCallback(recentMangaSection);
-
-        const requestForRecentIllustrations = App.createRequest({
-            url: `${DOMAIN}/browse?cat=4`,
-            method: 'GET'
-        });
-        const responseForRecentIllustrations = await this.requestManager.schedule(requestForRecentIllustrations, 1);
-        const $recentIllustrations = this.cheerio.load(responseForRecentIllustrations.data as string);
-        const recentIllustrationsSection = App.createHomeSection({id: 'recent illustrations', title: 'Recent Illustrations', 
-            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
-        const recentIllustrationsAlbums = getAlbums($recentIllustrations);
-        recentIllustrationsSection.items = recentIllustrationsAlbums;
-        sectionCallback(recentIllustrationsSection);
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
@@ -166,22 +106,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         let param = '';
         switch (homepageSectionId) {
             case 'recent':
-                param = `/browse/page/${albumNum}`;
-                break;
-            case 'popular weekly':
-                param = `/popular/weekly/page/${albumNum}`;
-                break;
-            case 'popular monthly':
-                param = `/popular/monthly/page/${albumNum}`;
-                break;
-            case 'recent doujins':
-                param = `/browse/page/${albumNum}?cat=2&sort=16`;
-                break;
-            case 'recent manga':
-                param = `/browse/page/${albumNum}?cat=1`;
-                break;
-            case 'recent illustrations':
-                param = `/browse/page/${albumNum}?cat=4`;
+                param = `/?page=${albumNum}`;
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
@@ -248,12 +173,12 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         let request;
         if (query.title) {
             request = App.createRequest({
-                url: `${DOMAIN}/browse/page/${searchPage}?s=${encodeURIComponent(query.title)}`,
+                url: `${DOMAIN}/search?page/${searchPage}&q=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
         } else {
             request = App.createRequest({
-                url: `${DOMAIN}${query.includedTags?.map(x => x.id)}/page/${searchPage}`,
+                url: `${DOMAIN}/tags/${query.includedTags?.map(x => x.id)}?page=${searchPage}`,
                 method: 'GET'
             });
         }
