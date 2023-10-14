@@ -1439,7 +1439,7 @@ exports.Koushoku = exports.KoushokuInfo = void 0;
 const types_1 = require("@paperback/types");
 const KoushokuParser_1 = require("./KoushokuParser");
 exports.KoushokuInfo = {
-    version: '1.0.4',
+    version: '2.0.0',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1491,7 +1491,7 @@ class Koushoku {
     }
     async getHomePageSections(sectionCallback) {
         const requestForRecentlyAdded = App.createRequest({
-            url: `${KoushokuParser_1.DOMAIN}/browse`,
+            url: `${KoushokuParser_1.DOMAIN}`,
             method: 'GET'
         });
         const responseForRecentlyAdded = await this.requestManager.schedule(requestForRecentlyAdded, 1);
@@ -1501,61 +1501,6 @@ class Koushoku {
         const recentlyAddedAlbums = (0, KoushokuParser_1.getAlbums)($recentlyAdded);
         recentlyAddedAlbumsSection.items = recentlyAddedAlbums;
         sectionCallback(recentlyAddedAlbumsSection);
-        const requestForPopularWeekly = App.createRequest({
-            url: `${KoushokuParser_1.DOMAIN}/popular/weekly`,
-            method: 'GET'
-        });
-        const responseForPopularWeekly = await this.requestManager.schedule(requestForPopularWeekly, 1);
-        const $popularWeekly = this.cheerio.load(responseForPopularWeekly.data);
-        const popularWeeklySection = App.createHomeSection({ id: 'popular weekly', title: 'Popular This Week',
-            containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
-        const popularWeeklyAlbums = (0, KoushokuParser_1.getAlbums)($popularWeekly);
-        popularWeeklySection.items = popularWeeklyAlbums;
-        sectionCallback(popularWeeklySection);
-        const requestForPopularMonthly = App.createRequest({
-            url: `${KoushokuParser_1.DOMAIN}/popular/monthly`,
-            method: 'GET'
-        });
-        const responseForPopularMonthly = await this.requestManager.schedule(requestForPopularMonthly, 1);
-        const $popularMonthly = this.cheerio.load(responseForPopularMonthly.data);
-        const popularMonthlySection = App.createHomeSection({ id: 'popular monthly', title: 'Popular This Month',
-            containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
-        const popularMonthlyAlbums = (0, KoushokuParser_1.getAlbums)($popularMonthly);
-        popularMonthlySection.items = popularMonthlyAlbums;
-        sectionCallback(popularMonthlySection);
-        const requestForRecentDoujin = App.createRequest({
-            url: `${KoushokuParser_1.DOMAIN}/browse?cat=2&sort=16`,
-            method: 'GET'
-        });
-        const responseForRecentDoujin = await this.requestManager.schedule(requestForRecentDoujin, 1);
-        const $recentDoujin = this.cheerio.load(responseForRecentDoujin.data);
-        const recentDoujinSection = App.createHomeSection({ id: 'recent doujins', title: 'Recent Doujins',
-            containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
-        const recentDoujinAlbums = (0, KoushokuParser_1.getAlbums)($recentDoujin);
-        recentDoujinSection.items = recentDoujinAlbums;
-        sectionCallback(recentDoujinSection);
-        const requestForRecentManga = App.createRequest({
-            url: `${KoushokuParser_1.DOMAIN}/browse?cat=1`,
-            method: 'GET'
-        });
-        const responseForRecentManga = await this.requestManager.schedule(requestForRecentManga, 1);
-        const $recentManga = this.cheerio.load(responseForRecentManga.data);
-        const recentMangaSection = App.createHomeSection({ id: 'recent manga', title: 'Recent Manga',
-            containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
-        const recentMangaAlbums = (0, KoushokuParser_1.getAlbums)($recentManga);
-        recentMangaSection.items = recentMangaAlbums;
-        sectionCallback(recentMangaSection);
-        const requestForRecentIllustrations = App.createRequest({
-            url: `${KoushokuParser_1.DOMAIN}/browse?cat=4`,
-            method: 'GET'
-        });
-        const responseForRecentIllustrations = await this.requestManager.schedule(requestForRecentIllustrations, 1);
-        const $recentIllustrations = this.cheerio.load(responseForRecentIllustrations.data);
-        const recentIllustrationsSection = App.createHomeSection({ id: 'recent illustrations', title: 'Recent Illustrations',
-            containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
-        const recentIllustrationsAlbums = (0, KoushokuParser_1.getAlbums)($recentIllustrations);
-        recentIllustrationsSection.items = recentIllustrationsAlbums;
-        sectionCallback(recentIllustrationsSection);
     }
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
@@ -1563,22 +1508,7 @@ class Koushoku {
         let param = '';
         switch (homepageSectionId) {
             case 'recent':
-                param = `/browse/page/${albumNum}`;
-                break;
-            case 'popular weekly':
-                param = `/popular/weekly/page/${albumNum}`;
-                break;
-            case 'popular monthly':
-                param = `/popular/monthly/page/${albumNum}`;
-                break;
-            case 'recent doujins':
-                param = `/browse/page/${albumNum}?cat=2&sort=16`;
-                break;
-            case 'recent manga':
-                param = `/browse/page/${albumNum}?cat=1`;
-                break;
-            case 'recent illustrations':
-                param = `/browse/page/${albumNum}?cat=4`;
+                param = `/?page=${albumNum}`;
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
@@ -1636,13 +1566,13 @@ class Koushoku {
         let request;
         if (query.title) {
             request = App.createRequest({
-                url: `${KoushokuParser_1.DOMAIN}/browse/page/${searchPage}?s=${encodeURIComponent(query.title)}`,
+                url: `${KoushokuParser_1.DOMAIN}/search?page/${searchPage}&q=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
         }
         else {
             request = App.createRequest({
-                url: `${KoushokuParser_1.DOMAIN}${query.includedTags?.map(x => x.id)}/page/${searchPage}`,
+                url: `${KoushokuParser_1.DOMAIN}/tags/${query.includedTags?.map(x => x.id)}?page=${searchPage}`,
                 method: 'GET'
             });
         }
@@ -1661,34 +1591,21 @@ exports.Koushoku = Koushoku;
 },{"./KoushokuParser":71,"@paperback/types":61}],71:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testImageLink = exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
+exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
 const entities = require("entities");
-exports.DOMAIN = 'https://ksk.moe';
-const REGEX_PAGE = /[0-9]+(.(jpg|png))/g;
+exports.DOMAIN = 'https://fakku.cc';
 async function getTags(requestManager, cheerio) {
     const request = App.createRequest({
-        url: `${exports.DOMAIN}/tags/page/1`,
+        url: `${exports.DOMAIN}/tags`,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
     const $ = cheerio.load(data.data);
     const tagElements = $('main', 'main').children().toArray();
-    const request2 = App.createRequest({
-        url: `${exports.DOMAIN}/tags/page/2`,
-        method: 'GET'
-    });
-    const data2 = await requestManager.schedule(request2, 1);
-    const $$ = cheerio.load(data2.data);
-    const tagElements2 = $$('main', 'main').children().toArray();
     const tags = [];
     for (const element of tagElements) {
         const id = $('a', element).attr('href') ?? '';
         const label = $('span', element).first().text() ?? '';
-        tags.push(App.createTag({ id, label }));
-    }
-    for (const element of tagElements2) {
-        const id = $$('a', element).attr('href') ?? '';
-        const label = $$('span', element).first().text() ?? '';
         tags.push(App.createTag({ id, label }));
     }
     return tags;
@@ -1696,12 +1613,16 @@ async function getTags(requestManager, cheerio) {
 exports.getTags = getTags;
 function getAlbums($) {
     const albums = [];
-    const albumGroups = $('article', 'main').toArray();
+    const albumGroups = $('article.entry').toArray();
     for (const album of albumGroups) {
         const image = $('img', album).attr('src') ?? '';
         const id = $('a', album).attr('href') ?? '';
         const title = $('a', album).attr('title') ?? '';
         const artist = $('span', album).first().text() ?? '';
+        console.log('ID ' + id);
+        console.log('Image ' + image);
+        console.log('Title ' + title);
+        console.log('Artist ' + artist);
         if (!id || !title) {
             continue;
         }
@@ -1754,73 +1675,34 @@ async function getGalleryData(id, requestManager, cheerio) {
 }
 exports.getGalleryData = getGalleryData;
 async function getPages(id, requestManager, cheerio) {
-    const imageId = id.slice(10);
     const pages = [];
-    // Determine page length
-    const request = App.createRequest({
-        url: `${exports.DOMAIN}/${id}`,
+    let request = App.createRequest({
+        url: `${exports.DOMAIN}/${id}/1`,
         method: 'GET'
     });
-    const data = await requestManager.schedule(request, 1);
-    const $ = cheerio.load(data.data);
-    const length = parseInt($('span:contains("Pages")').text().split(' ')[0] ?? '');
-    const urlPieces = $('img').first().attr('src')?.split('/') ?? '';
-    const suffix = urlPieces[urlPieces?.length - 1] ?? '';
-    const pagesRequest = App.createRequest({
-        url: `${exports.DOMAIN}/read${id.slice(7)}/1`,
-        method: 'GET'
-    });
-    const pagesData = await requestManager.schedule(pagesRequest, 1);
-    const $$ = cheerio.load(pagesData.data, { xmlMode: true });
-    // Image format is not guranteed
-    // const imageFormat = suffix.slice(suffix.length, 3) ? 'jpg' : 'png';
-    const pageNumFormat = suffix.split('.')[0]?.length;
-    // Extract page nums from script
-    const pageNums = $$('script[type$=javascript]').last().toString();
-    const unsortedPageNumsList = pageNums.matchAll(REGEX_PAGE);
-    const pageNumsList = [...new Set(Array.from(unsortedPageNumsList, x => x[0]))];
-    if (pageNumFormat === 2 || pageNumFormat === 3) {
-        for (let i = 0; i < length; i++) {
-            const imageLink = `${exports.DOMAIN}/resampled/${imageId}/${pageNumsList[i]}`;
-            pages.push(imageLink);
-        }
-    }
-    else {
-        const urlFormat = urlPieces[urlPieces.length - 1];
-        const firstHalf = urlFormat?.split('001')[0] ?? '';
-        const lastHalf = urlFormat?.split('001')[1] ?? '';
-        for (let i = 1; i < length + 1; i++) {
-            // Pages start from 001, 002..010, 011..100, 101...
-            let pageNumFormat = i < 10 ? `00${i}` : `0${i}`;
-            if (i > 99) {
-                pageNumFormat = `${i}`;
-            }
-            const finalFormat = firstHalf?.concat(pageNumFormat, lastHalf);
-            const imageLink = `${exports.DOMAIN}/resampled/${imageId}/${finalFormat}`;
-            pages.push(imageLink);
-        }
+    let data = await requestManager.schedule(request, 1);
+    let $ = cheerio.load(data.data);
+    const lengthText = $('span.total').text();
+    const length = parseInt(lengthText.substring(0, lengthText.length / 2));
+    let imageLink = $('img', 'main.page').attr('src') ?? '';
+    pages.push(imageLink);
+    for (let i = 1; i < length + 1; i++) {
+        request = App.createRequest({
+            url: `${exports.DOMAIN}/${id}/${i}`,
+            method: 'GET'
+        });
+        data = await requestManager.schedule(request, 1);
+        $ = cheerio.load(data.data);
+        imageLink = $('img', 'main.page').attr('src') ?? '';
+        pages.push(imageLink);
     }
     return pages;
 }
 exports.getPages = getPages;
 const isLastPage = (albums) => {
-    // max albums displayed per page, need to find better way - last page will have 35 albums for popular sections
-    return albums.length != 35;
+    return albums.length != 25;
 };
 exports.isLastPage = isLastPage;
-async function testImageLink(imageLink, requestManager) {
-    const jpgImageLink = imageLink.replace(/.{0,3}$/, '') + 'jpg';
-    const request = App.createRequest({
-        url: imageLink,
-        method: 'GET'
-    });
-    const status = (await requestManager.schedule(request, 1)).status;
-    if (status !== 200) {
-        return jpgImageLink;
-    }
-    return imageLink;
-}
-exports.testImageLink = testImageLink;
 
 },{"entities":69}]},{},[70])(70)
 });
