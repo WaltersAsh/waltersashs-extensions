@@ -1439,7 +1439,7 @@ exports.Koushoku = exports.KoushokuInfo = void 0;
 const types_1 = require("@paperback/types");
 const KoushokuParser_1 = require("./KoushokuParser");
 exports.KoushokuInfo = {
-    version: '2.0.0',
+    version: '2.1.0',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -1483,9 +1483,13 @@ class Koushoku {
     }
     async getSearchTags() {
         const tags = await (0, KoushokuParser_1.getTags)(this.requestManager, this.cheerio);
+        const artists = await (0, KoushokuParser_1.getArtists)(this.requestManager, this.cheerio);
         return [
             App.createTagSection({
                 id: 'tags', label: 'Tags', tags: tags ?? []
+            }),
+            App.createTagSection({
+                id: 'artists', label: 'Artists', tags: artists ?? []
             })
         ];
     }
@@ -1566,15 +1570,22 @@ class Koushoku {
     async getSearchResults(query, metadata) {
         const searchPage = metadata?.page ?? 1;
         let request;
+        const queryId = query.includedTags?.map((x) => encodeURIComponent(x.id)) ?? [];
         if (query.title) {
             request = App.createRequest({
                 url: `${KoushokuParser_1.DOMAIN}/search?page=${searchPage}&q=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
         }
+        else if (queryId[0]?.includes('artists')) {
+            request = App.createRequest({
+                url: `${KoushokuParser_1.DOMAIN}/artists/${query.includedTags?.map(x => x.id.slice(9))}?page=${searchPage}`,
+                method: 'GET'
+            });
+        }
         else {
             request = App.createRequest({
-                url: `${KoushokuParser_1.DOMAIN}/tags/${query.includedTags?.map(x => x.id)}?page=${searchPage}`,
+                url: `${KoushokuParser_1.DOMAIN}/tags/${query.includedTags?.map(x => x.id.slice(6))}?page=${searchPage}`,
                 method: 'GET'
             });
         }
@@ -1604,7 +1615,7 @@ exports.Koushoku = Koushoku;
 },{"./KoushokuParser":71,"@paperback/types":61}],71:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CloudFlareError = exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
+exports.CloudFlareError = exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getArtists = exports.getTags = exports.DOMAIN = void 0;
 const entities = require("entities");
 exports.DOMAIN = 'https://fakku.cc';
 async function getTags(requestManager, cheerio) {
@@ -1618,15 +1629,33 @@ async function getTags(requestManager, cheerio) {
     const tagElements = $('div.entry').toArray();
     const tags = [];
     for (const element of tagElements) {
-        const id = $('a', element).attr('href')?.slice(6) ?? '';
+        const id = $('a', element).attr('href') ?? '';
         const label = $('strong', element).first().text() ?? '';
-        console.log(id);
-        console.log(label);
         tags.push(App.createTag({ id, label }));
     }
     return tags;
 }
 exports.getTags = getTags;
+async function getArtists(requestManager, cheerio) {
+    const artists = [];
+    for (let i = 0; i < 10; i++) {
+        const request = App.createRequest({
+            url: `${exports.DOMAIN}/artists?page=${i}`,
+            method: 'GET'
+        });
+        const data = await requestManager.schedule(request, 1);
+        CloudFlareError(data.status);
+        const $ = cheerio.load(data.data);
+        const artistElements = $('div.entry').toArray();
+        for (const element of artistElements) {
+            const id = $('a', element).attr('href') ?? '';
+            const label = $('strong', element).first().text() ?? '';
+            artists.push(App.createTag({ id, label }));
+        }
+    }
+    return artists;
+}
+exports.getArtists = getArtists;
 function getAlbums($) {
     const albums = [];
     const albumGroups = $('article.entry').toArray();
