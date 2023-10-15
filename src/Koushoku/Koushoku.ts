@@ -26,11 +26,12 @@ import {
     getPages,
     getTags,
     isLastPage,
-    CloudFlareError
+    CloudFlareError,
+    getArtists
 } from './KoushokuParser';
 
 export const KoushokuInfo: SourceInfo = {
-    version: '2.0.0',
+    version: '2.1.0',
     name: 'Koushoku',
     icon: 'icon.png',
     author: 'WaltersAsh',
@@ -78,10 +79,14 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
 
     async getSearchTags(): Promise<TagSection[]> {
         const tags = await getTags(this.requestManager, this.cheerio);
+        const artists = await getArtists(this.requestManager, this.cheerio);
        
         return [
             App.createTagSection({
                 id: 'tags', label: 'Tags', tags: tags ?? []
+            }),
+            App.createTagSection({
+                id: 'artists', label: 'Artists', tags: artists ?? []
             })
         ];
     }
@@ -174,14 +179,21 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         const searchPage: number = metadata?.page ?? 1;
 
         let request;
+        const queryId = query.includedTags?.map((x) => encodeURIComponent(x.id)) ?? [];
         if (query.title) {
             request = App.createRequest({
                 url: `${DOMAIN}/search?page=${searchPage}&q=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
+        }
+        else if (queryId[0]?.includes('artists')) {
+            request = App.createRequest({
+                url: `${DOMAIN}/artists/${query.includedTags?.map(x => x.id.slice(9))}?page=${searchPage}`,
+                method: 'GET'
+            });
         } else {
             request = App.createRequest({
-                url: `${DOMAIN}/tags/${query.includedTags?.map(x => x.id)}?page=${searchPage}`,
+                url: `${DOMAIN}/tags/${query.includedTags?.map(x => x.id.slice(6))}?page=${searchPage}`,
                 method: 'GET'
             });
         }

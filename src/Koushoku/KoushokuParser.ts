@@ -1,8 +1,7 @@
 import {
     PartialSourceManga,
     RequestManager,
-    Tag,
-    TagSection
+    Tag
 } from '@paperback/types';
 
 import entities = require('entities');
@@ -21,14 +20,35 @@ export async function getTags(requestManager: RequestManager, cheerio: CheerioAP
     const tags: Tag[] = [];
 
     for (const element of tagElements) {
-        const id = $('a', element).attr('href')?.slice(6) ?? '';
+        const id = $('a', element).attr('href') ?? '';
         const label = $('strong', element).first().text() ?? '';
-        console.log(id);
-        console.log(label);
         tags.push(App.createTag({ id, label }));
     }
 
     return tags;
+}
+
+export async function getArtists(requestManager: RequestManager, cheerio: CheerioAPI): Promise<Tag[]> {
+    const artists: Tag[] = [];
+
+    for (let i = 0; i < 10; i++) {
+        const request = App.createRequest({
+            url: `${DOMAIN}/artists?page=${i}`,
+            method: 'GET'
+        });
+        const data = await requestManager.schedule(request, 1);
+        CloudFlareError(data.status);
+        const $ = cheerio.load(data.data as string);
+        const artistElements = $('div.entry').toArray();
+    
+        for (const element of artistElements) {
+            const id = $('a', element).attr('href') ?? '';
+            const label = $('strong', element).first().text() ?? '';
+            artists.push(App.createTag({ id, label }));
+        }
+    }
+
+    return artists;
 }
 
 export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
