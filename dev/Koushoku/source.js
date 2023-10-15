@@ -1453,7 +1453,7 @@ exports.KoushokuInfo = {
             type: types_1.BadgeColor.RED
         }
     ],
-    intents: types_1.SourceIntents.MANGA_CHAPTERS | types_1.SourceIntents.HOMEPAGE_SECTIONS
+    intents: types_1.SourceIntents.MANGA_CHAPTERS | types_1.SourceIntents.HOMEPAGE_SECTIONS | types_1.SourceIntents.CLOUDFLARE_BYPASS_REQUIRED
 };
 class Koushoku {
     constructor(cheerio) {
@@ -1495,6 +1495,7 @@ class Koushoku {
             method: 'GET'
         });
         const responseForRecentlyAdded = await this.requestManager.schedule(requestForRecentlyAdded, 1);
+        (0, KoushokuParser_1.CloudFlareError)(responseForRecentlyAdded.status);
         const $recentlyAdded = this.cheerio.load(responseForRecentlyAdded.data);
         const recentlyAddedAlbumsSection = App.createHomeSection({ id: 'recent', title: 'Recent Updates',
             containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
@@ -1519,6 +1520,7 @@ class Koushoku {
             param
         });
         const response = await this.requestManager.schedule(request, 1);
+        (0, KoushokuParser_1.CloudFlareError)(response.status);
         const $ = this.cheerio.load(response.data);
         const albums = (0, KoushokuParser_1.getAlbums)($);
         metadata = !(0, KoushokuParser_1.isLastPage)(albums) ? { page: albumNum + 1 } : undefined;
@@ -1539,7 +1541,7 @@ class Koushoku {
                 tags: data.tags,
                 author: data.artist,
                 artist: data.artist,
-                desc: ''
+                desc: data.desc
             })
         });
     }
@@ -1566,7 +1568,7 @@ class Koushoku {
         let request;
         if (query.title) {
             request = App.createRequest({
-                url: `${KoushokuParser_1.DOMAIN}/search?page/${searchPage}&q=${encodeURIComponent(query.title)}`,
+                url: `${KoushokuParser_1.DOMAIN}/search?page=${searchPage}&q=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
         }
@@ -1577,6 +1579,7 @@ class Koushoku {
             });
         }
         const response = await this.requestManager.schedule(request, 1);
+        (0, KoushokuParser_1.CloudFlareError)(response.status);
         const $ = this.cheerio.load(response.data);
         const albums = (0, KoushokuParser_1.getAlbums)($);
         metadata = !(0, KoushokuParser_1.isLastPage)(albums) ? { page: searchPage + albums.length } : undefined;
@@ -1585,13 +1588,23 @@ class Koushoku {
             metadata
         });
     }
+    async getCloudflareBypassRequestAsync() {
+        return App.createRequest({
+            url: KoushokuParser_1.DOMAIN,
+            method: 'GET',
+            headers: {
+                'referer': `${KoushokuParser_1.DOMAIN}/`,
+                'user-agent': await this.requestManager.getDefaultUserAgent()
+            }
+        });
+    }
 }
 exports.Koushoku = Koushoku;
 
 },{"./KoushokuParser":71,"@paperback/types":61}],71:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
+exports.CloudFlareError = exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getTags = exports.DOMAIN = void 0;
 const entities = require("entities");
 exports.DOMAIN = 'https://fakku.cc';
 async function getTags(requestManager, cheerio) {
@@ -1600,12 +1613,15 @@ async function getTags(requestManager, cheerio) {
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
+    CloudFlareError(data.status);
     const $ = cheerio.load(data.data);
-    const tagElements = $('main', 'main').children().toArray();
+    const tagElements = $('div.entry').toArray();
     const tags = [];
     for (const element of tagElements) {
-        const id = $('a', element).attr('href') ?? '';
-        const label = $('span', element).first().text() ?? '';
+        const id = $('a', element).attr('href')?.slice(6) ?? '';
+        const label = $('strong', element).first().text() ?? '';
+        console.log(id);
+        console.log(label);
         tags.push(App.createTag({ id, label }));
     }
     return tags;
@@ -1618,11 +1634,7 @@ function getAlbums($) {
         const image = $('img', album).attr('src') ?? '';
         const id = $('a', album).attr('href') ?? '';
         const title = $('a', album).attr('title') ?? '';
-        const artist = $('span', album).first().text() ?? '';
-        console.log('ID ' + id);
-        console.log('Image ' + image);
-        console.log('Title ' + title);
-        console.log('Artist ' + artist);
+        const artist = $('span', album).last().text() ?? '';
         if (!id || !title) {
             continue;
         }
@@ -1643,34 +1655,25 @@ async function getGalleryData(id, requestManager, cheerio) {
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
+    CloudFlareError(data.status);
     const $ = cheerio.load(data.data);
-    const title = $('h2', 'section#metadata').first().text();
+    const title = $('h1.title').first().text();
     const image = $('img').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-    const artistSection = $('strong:contains("Artist")').parent();
-    const artist = $('span', artistSection).first().text();
-    const tagsElement1 = $('strong:contains("Tag")').first().parent();
-    const tagsElement2 = $('span', tagsElement1).toArray();
-    const tagsToRender = [];
-    for (const tag of tagsElement2) {
-        const label = $(tag).text();
-        if (label.match(/^\d/))
-            continue;
-        if (!label) {
-            continue;
-        }
-        tagsToRender.push({ id: `/tags/${encodeURIComponent(label)}`, label: label });
-    }
-    const tagSections = [App.createTagSection({
-            id: '0',
-            label: 'Tags',
-            tags: tagsToRender.map(x => App.createTag(x))
-        })];
+    const artist = $('a', 'tr.artists').text();
+    const magazine = $('a', 'tr.magazines').text();
+    const pages = $('td', 'tr.pages').last().text();
+    const created = $('td', 'tr.created').last().text();
+    const published = $('td', 'tr.published').last().text();
+    const desc = 'Magazine: ' + magazine + '\n'
+        + 'Pages: ' + pages + '\n'
+        + 'Created: ' + created + '\n'
+        + 'Published: ' + published + '\n';
     return {
         id: id,
         titles: [entities.decodeHTML(title)],
         image: image,
         artist: artist,
-        tags: tagSections
+        desc: desc
     };
 }
 exports.getGalleryData = getGalleryData;
@@ -1681,17 +1684,19 @@ async function getPages(id, requestManager, cheerio) {
         method: 'GET'
     });
     let data = await requestManager.schedule(request, 1);
+    CloudFlareError(data.status);
     let $ = cheerio.load(data.data);
     const lengthText = $('span.total').text();
     const length = parseInt(lengthText.substring(0, lengthText.length / 2));
     let imageLink = $('img', 'main.page').attr('src') ?? '';
     pages.push(imageLink);
-    for (let i = 1; i < length + 1; i++) {
+    for (let i = 2; i < length + 1; i++) {
         request = App.createRequest({
             url: `${exports.DOMAIN}/${id}/${i}`,
             method: 'GET'
         });
         data = await requestManager.schedule(request, 1);
+        CloudFlareError(data.status);
         $ = cheerio.load(data.data);
         imageLink = $('img', 'main.page').attr('src') ?? '';
         pages.push(imageLink);
@@ -1703,6 +1708,12 @@ const isLastPage = (albums) => {
     return albums.length != 25;
 };
 exports.isLastPage = isLastPage;
+function CloudFlareError(status) {
+    if (status == 503 || status == 403) {
+        throw new Error(`CLOUDFLARE BYPASS ERROR:\nPlease go to the homepage of <${exports.DOMAIN}> and press the cloud icon.`);
+    }
+}
+exports.CloudFlareError = CloudFlareError;
 
 },{"entities":69}]},{},[70])(70)
 });
