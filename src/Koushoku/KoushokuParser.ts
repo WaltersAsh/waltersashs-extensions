@@ -15,14 +15,16 @@ export async function getTags(requestManager: RequestManager, cheerio: CheerioAP
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
+    CloudFlareError(data.status);
     const $ = cheerio.load(data.data as string);
-    const tagElements = $('main', 'main').children().toArray();
-    
+    const tagElements = $('div.entry').toArray();
     const tags: Tag[] = [];
 
     for (const element of tagElements) {
-        const id = $('a', element).attr('href') ?? '';
-        const label = $('span', element).first().text() ?? '';
+        const id = $('a', element).attr('href')?.slice(6) ?? '';
+        const label = $('strong', element).first().text() ?? '';
+        console.log(id);
+        console.log(label);
         tags.push(App.createTag({ id, label }));
     }
 
@@ -37,12 +39,7 @@ export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
         const image = $('img', album).attr('src') ?? '';
         const id = $('a', album).attr('href') ?? '';
         const title = $('a', album).attr('title') ?? '';
-        const artist = $('span', album).first().text() ?? '';
-
-        console.log('ID ' + id);
-        console.log('Image ' + image);
-        console.log('Title ' + title);
-        console.log('Artist ' + artist);
+        const artist = $('span', album).last().text() ?? '';
 
         if (!id || !title) {
             continue;
@@ -66,39 +63,28 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
         method: 'GET'
     });
     const data = await requestManager.schedule(request, 1);
+    CloudFlareError(data.status);
     const $ = cheerio.load(data.data as string);
 
-    const title = $('h2', 'section#metadata').first().text();
+    const title = $('h1.title').first().text();
     const image = $('img').first().attr('src') ?? 'https://i.imgur.com/GYUxEX8.png';
-    const artistSection = $('strong:contains("Artist")').parent();
-    const artist = $('span', artistSection).first().text();
+    const artist = $('a', 'tr.artists').text();
+    const magazine = $('a', 'tr.magazines').text();
+    const pages = $('td', 'tr.pages').last().text();
+    const created = $('td', 'tr.created').last().text();
+    const published = $('td', 'tr.published').last().text();
+    const desc = 'Magazine: ' + magazine + '\n'
+        + 'Pages: ' + pages + '\n'
+        + 'Created: ' + created + '\n'
+        + 'Published: ' + published + '\n';
 
-    const tagsElement1 = $('strong:contains("Tag")').first().parent();
-    const tagsElement2 = $('span', tagsElement1).toArray();
-
-    const tagsToRender: Tag[] = [];
-    for (const tag of tagsElement2) {
-        const label = $(tag).text();
-        if (label.match(/^\d/)) continue;
-        
-        if (!label) {
-            continue;
-        }
-        tagsToRender.push({ id: `/tags/${encodeURIComponent(label)}`, label: label });
-    }
-
-    const tagSections: TagSection[] = [App.createTagSection({
-        id: '0',
-        label: 'Tags',
-        tags: tagsToRender.map(x => App.createTag(x)) 
-    })];
 
     return {
         id: id,
         titles: [entities.decodeHTML(title as string)],
         image: image,
         artist: artist,
-        tags: tagSections
+        desc: desc
     };
 }
 
@@ -110,18 +96,20 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
         method: 'GET'
     });
     let data = await requestManager.schedule(request, 1);
+    CloudFlareError(data.status);
     let $ = cheerio.load(data.data as string);
     const lengthText = $('span.total').text();
     const length = parseInt(lengthText.substring(0, lengthText.length / 2));
     let imageLink = $('img', 'main.page').attr('src') ?? '';
     pages.push(imageLink);
     
-    for (let i = 1; i < length + 1; i++) {
+    for (let i = 2; i < length + 1; i++) {
         request = App.createRequest({
             url: `${DOMAIN}/${id}/${i}`,
             method: 'GET'
         });
         data = await requestManager.schedule(request, 1);
+        CloudFlareError(data.status);
         $ = cheerio.load(data.data as string);
         imageLink = $('img', 'main.page').attr('src') ?? '';
         pages.push(imageLink);
@@ -133,3 +121,9 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
 export const isLastPage = (albums: PartialSourceManga[]): boolean => {
     return albums.length != 25; 
 };  
+
+export function CloudFlareError(status: number): void {
+    if (status == 503 || status == 403) {
+        throw new Error(`CLOUDFLARE BYPASS ERROR:\nPlease go to the homepage of <${DOMAIN}> and press the cloud icon.`);
+    }
+}

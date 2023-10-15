@@ -26,6 +26,7 @@ import {
     getPages,
     getTags,
     isLastPage,
+    CloudFlareError
 } from './KoushokuParser';
 
 export const KoushokuInfo: SourceInfo = {
@@ -43,7 +44,7 @@ export const KoushokuInfo: SourceInfo = {
             type: BadgeColor.RED
         }
     ],
-    intents: SourceIntents.MANGA_CHAPTERS | SourceIntents.HOMEPAGE_SECTIONS
+    intents: SourceIntents.MANGA_CHAPTERS | SourceIntents.HOMEPAGE_SECTIONS | SourceIntents.CLOUDFLARE_BYPASS_REQUIRED 
 };
 
 export class Koushoku implements SearchResultsProviding, MangaProviding, ChapterProviding, HomePageSectionsProviding {
@@ -91,6 +92,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
             method: 'GET'
         });
         const responseForRecentlyAdded = await this.requestManager.schedule(requestForRecentlyAdded, 1);
+        CloudFlareError(responseForRecentlyAdded.status);
         const $recentlyAdded = this.cheerio.load(responseForRecentlyAdded.data as string);
         const recentlyAddedAlbumsSection = App.createHomeSection({id: 'recent', title: 'Recent Updates', 
             containsMoreItems: true, type: HomeSectionType.singleRowNormal});
@@ -118,6 +120,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
             param
         });
         const response = await this.requestManager.schedule(request, 1);
+        CloudFlareError(response.status);
         const $ = this.cheerio.load(response.data as string);
         
         const albums = getAlbums($);
@@ -141,7 +144,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
                 tags: data.tags,
                 author: data.artist,
                 artist: data.artist,
-                desc: ''
+                desc: data.desc
             })
         });
     }
@@ -173,7 +176,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         let request;
         if (query.title) {
             request = App.createRequest({
-                url: `${DOMAIN}/search?page/${searchPage}&q=${encodeURIComponent(query.title)}`,
+                url: `${DOMAIN}/search?page=${searchPage}&q=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
         } else {
@@ -183,6 +186,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
             });
         }
         const response = await this.requestManager.schedule(request, 1);
+        CloudFlareError(response.status);
         const $ = this.cheerio.load(response.data as string);
 
         const albums = getAlbums($);
@@ -191,6 +195,17 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         return App.createPagedResults({
             results: albums,
             metadata
+        });
+    }
+
+    async getCloudflareBypassRequestAsync(): Promise<Request> {
+        return App.createRequest({
+            url: DOMAIN,
+            method: 'GET',
+            headers: {
+                'referer': `${DOMAIN}/`,
+                'user-agent': await this.requestManager.getDefaultUserAgent()
+            }
         });
     }
 }
