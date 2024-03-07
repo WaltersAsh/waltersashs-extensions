@@ -1435,18 +1435,18 @@ Object.defineProperty(exports, "decodeXMLStrict", { enumerable: true, get: funct
 },{"./decode.js":62,"./encode.js":64,"./escape.js":65}],70:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Koushoku = exports.KoushokuInfo = void 0;
+exports.HentaiNexus = exports.HentaiNexusInfo = void 0;
 const types_1 = require("@paperback/types");
-const KoushokuParser_1 = require("./KoushokuParser");
-exports.KoushokuInfo = {
-    version: '2.1.0',
-    name: 'Koushoku',
+const HentaiNexusParser_1 = require("./HentaiNexusParser");
+exports.HentaiNexusInfo = {
+    version: '0.1.0',
+    name: 'HentaiNexus',
     icon: 'icon.png',
     author: 'WaltersAsh',
     authorWebsite: 'https://github.com/WaltersAsh',
-    description: 'Extension to grab albums from Koushoku',
+    description: 'Extension to grab albums from HentaiNexus',
     contentRating: types_1.ContentRating.ADULT,
-    websiteBaseURL: KoushokuParser_1.DOMAIN,
+    websiteBaseURL: HentaiNexusParser_1.DOMAIN,
     sourceTags: [
         {
             text: '18+',
@@ -1455,7 +1455,7 @@ exports.KoushokuInfo = {
     ],
     intents: types_1.SourceIntents.MANGA_CHAPTERS | types_1.SourceIntents.HOMEPAGE_SECTIONS | types_1.SourceIntents.CLOUDFLARE_BYPASS_REQUIRED
 };
-class Koushoku {
+class HentaiNexus {
     constructor(cheerio) {
         this.cheerio = cheerio;
         this.requestManager = App.createRequestManager({
@@ -1467,7 +1467,7 @@ class Koushoku {
                         ...(request.headers ?? {}),
                         ...{
                             'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15',
-                            'referer': KoushokuParser_1.DOMAIN
+                            'referer': HentaiNexusParser_1.DOMAIN
                         }
                     };
                     return request;
@@ -1479,11 +1479,11 @@ class Koushoku {
         });
     }
     getMangaShareUrl(mangaId) {
-        return `${KoushokuParser_1.DOMAIN}/${mangaId}`;
+        return `${HentaiNexusParser_1.DOMAIN}/${mangaId}`;
     }
     async getSearchTags() {
-        const tags = await (0, KoushokuParser_1.getTags)(this.requestManager, this.cheerio);
-        const artists = await (0, KoushokuParser_1.getArtists)(this.requestManager, this.cheerio);
+        const tags = await (0, HentaiNexusParser_1.getTags)(this.requestManager, this.cheerio);
+        const artists = await (0, HentaiNexusParser_1.getArtists)(this.requestManager, this.cheerio);
         return [
             App.createTagSection({
                 id: 'tags', label: 'Tags', tags: tags ?? []
@@ -1495,17 +1495,29 @@ class Koushoku {
     }
     async getHomePageSections(sectionCallback) {
         const requestForRecentlyAdded = App.createRequest({
-            url: `${KoushokuParser_1.DOMAIN}`,
+            url: `${HentaiNexusParser_1.DOMAIN}`,
+            method: 'GET'
+        });
+        const requestForHot = App.createRequest({
+            url: `${HentaiNexusParser_1.DOMAIN}/explore/hot`,
             method: 'GET'
         });
         const responseForRecentlyAdded = await this.requestManager.schedule(requestForRecentlyAdded, 1);
-        (0, KoushokuParser_1.CloudFlareError)(responseForRecentlyAdded.status);
+        (0, HentaiNexusParser_1.CloudFlareError)(responseForRecentlyAdded.status);
+        const responseForHot = await this.requestManager.schedule(requestForHot, 1);
+        (0, HentaiNexusParser_1.CloudFlareError)(responseForHot.status);
         const $recentlyAdded = this.cheerio.load(responseForRecentlyAdded.data);
+        const $hot = this.cheerio.load(responseForHot.data);
         const recentlyAddedAlbumsSection = App.createHomeSection({ id: 'recent', title: 'Recent Updates',
             containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
-        const recentlyAddedAlbums = (0, KoushokuParser_1.getAlbums)($recentlyAdded);
+        const hotAlbumsSection = App.createHomeSection({ id: 'hot', title: 'Hot',
+            containsMoreItems: true, type: types_1.HomeSectionType.singleRowNormal });
+        const recentlyAddedAlbums = (0, HentaiNexusParser_1.getAlbums)($recentlyAdded);
         recentlyAddedAlbumsSection.items = recentlyAddedAlbums;
         sectionCallback(recentlyAddedAlbumsSection);
+        const hotAlbums = (0, HentaiNexusParser_1.getAlbums)($hot);
+        hotAlbumsSection.items = hotAlbums;
+        sectionCallback(hotAlbumsSection);
     }
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getViewMoreItems(homepageSectionId, metadata) {
@@ -1513,28 +1525,31 @@ class Koushoku {
         let param = '';
         switch (homepageSectionId) {
             case 'recent':
-                param = `/?page=${albumNum}`;
+                param = `/page/${albumNum}`;
+                break;
+            case 'hot':
+                param = '/explore/hot';
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
         }
         const request = App.createRequest({
-            url: `${KoushokuParser_1.DOMAIN}`,
+            url: `${HentaiNexusParser_1.DOMAIN}`,
             method: 'GET',
             param
         });
         const response = await this.requestManager.schedule(request, 1);
-        (0, KoushokuParser_1.CloudFlareError)(response.status);
+        (0, HentaiNexusParser_1.CloudFlareError)(response.status);
         const $ = this.cheerio.load(response.data);
-        const albums = (0, KoushokuParser_1.getAlbums)($);
-        metadata = !(0, KoushokuParser_1.isLastPage)(albums) ? { page: albumNum + 1 } : undefined;
+        const albums = (0, HentaiNexusParser_1.getAlbums)($);
+        metadata = !(0, HentaiNexusParser_1.isLastPage)(albums) ? { page: albumNum + 1 } : undefined;
         return App.createPagedResults({
             results: albums,
             metadata
         });
     }
     async getMangaDetails(mangaId) {
-        const data = await (0, KoushokuParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
+        const data = await (0, HentaiNexusParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
         return App.createSourceManga({
             id: mangaId,
             mangaInfo: App.createMangaInfo({
@@ -1550,7 +1565,7 @@ class Koushoku {
         });
     }
     async getChapters(mangaId) {
-        const data = await (0, KoushokuParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
+        const data = await (0, HentaiNexusParser_1.getGalleryData)(mangaId, this.requestManager, this.cheerio);
         const chapters = [];
         chapters.push(App.createChapter({
             id: data.id,
@@ -1563,9 +1578,10 @@ class Koushoku {
         return App.createChapterDetails({
             id: chapterId,
             mangaId: mangaId,
-            pages: await (0, KoushokuParser_1.getPages)(mangaId, this.requestManager, this.cheerio)
+            pages: await (0, HentaiNexusParser_1.getPages)(mangaId, this.requestManager, this.cheerio)
         });
     }
+    // TODO: Rework
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query, metadata) {
         const searchPage = metadata?.page ?? 1;
@@ -1573,27 +1589,27 @@ class Koushoku {
         const queryId = query.includedTags?.map((x) => encodeURIComponent(x.id)) ?? [];
         if (query.title) {
             request = App.createRequest({
-                url: `${KoushokuParser_1.DOMAIN}/search?page=${searchPage}&q=${encodeURIComponent(query.title)}`,
+                url: `${HentaiNexusParser_1.DOMAIN}/search?page=${searchPage}&q=${encodeURIComponent(query.title)}`,
                 method: 'GET'
             });
         }
         else if (queryId[0]?.includes('artists')) {
             request = App.createRequest({
-                url: `${KoushokuParser_1.DOMAIN}/artists/${query.includedTags?.map(x => x.id.slice(9))}?page=${searchPage}`,
+                url: `${HentaiNexusParser_1.DOMAIN}/artists/${query.includedTags?.map(x => x.id.slice(9))}?page=${searchPage}`,
                 method: 'GET'
             });
         }
         else {
             request = App.createRequest({
-                url: `${KoushokuParser_1.DOMAIN}/tags/${query.includedTags?.map(x => x.id.slice(6))}?page=${searchPage}`,
+                url: `${HentaiNexusParser_1.DOMAIN}/tags/${query.includedTags?.map(x => x.id.slice(6))}?page=${searchPage}`,
                 method: 'GET'
             });
         }
         const response = await this.requestManager.schedule(request, 1);
-        (0, KoushokuParser_1.CloudFlareError)(response.status);
+        (0, HentaiNexusParser_1.CloudFlareError)(response.status);
         const $ = this.cheerio.load(response.data);
-        const albums = (0, KoushokuParser_1.getAlbums)($);
-        metadata = !(0, KoushokuParser_1.isLastPage)(albums) ? { page: searchPage + albums.length } : undefined;
+        const albums = (0, HentaiNexusParser_1.getAlbums)($);
+        metadata = !(0, HentaiNexusParser_1.isLastPage)(albums) ? { page: searchPage + albums.length } : undefined;
         return App.createPagedResults({
             results: albums,
             metadata
@@ -1601,23 +1617,24 @@ class Koushoku {
     }
     async getCloudflareBypassRequestAsync() {
         return App.createRequest({
-            url: KoushokuParser_1.DOMAIN,
+            url: HentaiNexusParser_1.DOMAIN,
             method: 'GET',
             headers: {
-                'referer': `${KoushokuParser_1.DOMAIN}/`,
+                'referer': `${HentaiNexusParser_1.DOMAIN}/`,
                 'user-agent': await this.requestManager.getDefaultUserAgent()
             }
         });
     }
 }
-exports.Koushoku = Koushoku;
+exports.HentaiNexus = HentaiNexus;
 
-},{"./KoushokuParser":71,"@paperback/types":61}],71:[function(require,module,exports){
+},{"./HentaiNexusParser":71,"@paperback/types":61}],71:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CloudFlareError = exports.isLastPage = exports.getPages = exports.getGalleryData = exports.getAlbums = exports.getArtists = exports.getTags = exports.DOMAIN = void 0;
 const entities = require("entities");
-exports.DOMAIN = 'https://fakku.cc';
+exports.DOMAIN = 'https://hentainexus.com';
+// TODO: Rework
 async function getTags(requestManager, cheerio) {
     const request = App.createRequest({
         url: `${exports.DOMAIN}/tags`,
@@ -1636,6 +1653,7 @@ async function getTags(requestManager, cheerio) {
     return tags;
 }
 exports.getTags = getTags;
+// TODO: Rework
 async function getArtists(requestManager, cheerio) {
     const artists = [];
     for (let i = 0; i < 10; i++) {
@@ -1658,25 +1676,24 @@ async function getArtists(requestManager, cheerio) {
 exports.getArtists = getArtists;
 function getAlbums($) {
     const albums = [];
-    const albumGroups = $('article.entry').toArray();
+    const albumGroups = $('div.column').toArray();
     for (const album of albumGroups) {
         const image = $('img', album).attr('src') ?? '';
         const id = $('a', album).attr('href') ?? '';
-        const title = $('a', album).attr('title') ?? '';
-        const artist = $('span', album).last().text() ?? '';
+        const title = $('header', album).attr('title') ?? '';
         if (!id || !title) {
             continue;
         }
         albums.push(App.createPartialSourceManga({
             mangaId: encodeURIComponent(id),
             image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
-            subtitle: artist,
             title: entities.decodeHTML(title)
         }));
     }
     return albums;
 }
 exports.getAlbums = getAlbums;
+// TODO: Rework
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getGalleryData(id, requestManager, cheerio) {
     const request = App.createRequest({
@@ -1706,6 +1723,7 @@ async function getGalleryData(id, requestManager, cheerio) {
     };
 }
 exports.getGalleryData = getGalleryData;
+// TODO: Rework
 async function getPages(id, requestManager, cheerio) {
     const pages = [];
     let request = App.createRequest({
@@ -1734,7 +1752,7 @@ async function getPages(id, requestManager, cheerio) {
 }
 exports.getPages = getPages;
 const isLastPage = (albums) => {
-    return albums.length != 25;
+    return albums.length != 30;
 };
 exports.isLastPage = isLastPage;
 function CloudFlareError(status) {
