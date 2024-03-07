@@ -6,8 +6,9 @@ import {
 
 import entities = require('entities');
 
-export const DOMAIN = 'https://fakku.cc';
+export const DOMAIN = 'https://hentainexus.com';
 
+// TODO: Rework
 export async function getTags(requestManager: RequestManager, cheerio: CheerioAPI): Promise<Tag[]> {
     const request = App.createRequest({
         url: `${DOMAIN}/tags`,
@@ -28,6 +29,7 @@ export async function getTags(requestManager: RequestManager, cheerio: CheerioAP
     return tags;
 }
 
+// TODO: Rework
 export async function getArtists(requestManager: RequestManager, cheerio: CheerioAPI): Promise<Tag[]> {
     const artists: Tag[] = [];
 
@@ -53,13 +55,12 @@ export async function getArtists(requestManager: RequestManager, cheerio: Cheeri
 
 export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
     const albums: PartialSourceManga[] = [];
-    const albumGroups = $('article.entry').toArray();
+    const albumGroups = $('div.column').toArray();
 
     for (const album of albumGroups) {
         const image = $('img', album).attr('src') ?? '';
         const id = $('a', album).attr('href') ?? '';
-        const title = $('a', album).attr('title') ?? '';
-        const artist = $('span', album).last().text() ?? '';
+        const title = $('header', album).attr('title') ?? '';
 
         if (!id || !title) {
             continue;
@@ -68,7 +69,6 @@ export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
         albums.push(App.createPartialSourceManga({
             mangaId: encodeURIComponent(id),
             image: image ? image : 'https://i.imgur.com/GYUxEX8.png',
-            subtitle: artist,
             title: entities.decodeHTML(title)
         }));
     }
@@ -76,6 +76,7 @@ export function getAlbums ($: CheerioStatic): PartialSourceManga[] {
     return albums;
 }
 
+// TODO: Rework
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getGalleryData(id: string, requestManager: RequestManager, cheerio: CheerioAPI): Promise<any> {
     const request = App.createRequest({
@@ -108,6 +109,7 @@ export async function getGalleryData(id: string, requestManager: RequestManager,
     };
 }
 
+// TODO: Rework
 export async function getPages(id: string, requestManager: RequestManager, cheerio: CheerioAPI): Promise<string[]> {
     const pages: string[] = [];
     
@@ -139,7 +141,7 @@ export async function getPages(id: string, requestManager: RequestManager, cheer
 }
 
 export const isLastPage = (albums: PartialSourceManga[]): boolean => {
-    return albums.length != 25; 
+    return albums.length != 30; 
 };  
 
 export function CloudFlareError(status: number): void {

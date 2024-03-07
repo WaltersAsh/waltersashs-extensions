@@ -28,15 +28,15 @@ import {
     isLastPage,
     CloudFlareError,
     getArtists
-} from './KoushokuParser';
+} from './HentaiNexusParser';
 
-export const KoushokuInfo: SourceInfo = {
-    version: '2.1.0',
-    name: 'Koushoku',
+export const HentaiNexusInfo: SourceInfo = {
+    version: '0.1.0',
+    name: 'HentaiNexus',
     icon: 'icon.png',
     author: 'WaltersAsh',
     authorWebsite: 'https://github.com/WaltersAsh',
-    description: 'Extension to grab albums from Koushoku',
+    description: 'Extension to grab albums from HentaiNexus',
     contentRating: ContentRating.ADULT,
     websiteBaseURL: DOMAIN,
     sourceTags: [
@@ -48,7 +48,7 @@ export const KoushokuInfo: SourceInfo = {
     intents: SourceIntents.MANGA_CHAPTERS | SourceIntents.HOMEPAGE_SECTIONS | SourceIntents.CLOUDFLARE_BYPASS_REQUIRED 
 };
 
-export class Koushoku implements SearchResultsProviding, MangaProviding, ChapterProviding, HomePageSectionsProviding {
+export class HentaiNexus implements SearchResultsProviding, MangaProviding, ChapterProviding, HomePageSectionsProviding {
 
     constructor(private cheerio: CheerioAPI) { }
 
@@ -76,7 +76,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
     getMangaShareUrl(mangaId: string): string {
         return `${DOMAIN}/${mangaId}`;
     }
-
+    
     async getSearchTags(): Promise<TagSection[]> {
         const tags = await getTags(this.requestManager, this.cheerio);
         const artists = await getArtists(this.requestManager, this.cheerio);
@@ -96,14 +96,31 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
             url: `${DOMAIN}`,
             method: 'GET'
         });
+        const requestForHot = App.createRequest({
+            url: `${DOMAIN}/explore/hot`,
+            method: 'GET'
+        });
+
         const responseForRecentlyAdded = await this.requestManager.schedule(requestForRecentlyAdded, 1);
         CloudFlareError(responseForRecentlyAdded.status);
+        const responseForHot = await this.requestManager.schedule(requestForHot, 1);
+        CloudFlareError(responseForHot.status);
+
         const $recentlyAdded = this.cheerio.load(responseForRecentlyAdded.data as string);
+        const $hot = this.cheerio.load(responseForHot.data as string);
+
         const recentlyAddedAlbumsSection = App.createHomeSection({id: 'recent', title: 'Recent Updates', 
             containsMoreItems: true, type: HomeSectionType.singleRowNormal});
+        const hotAlbumsSection = App.createHomeSection({id: 'hot', title: 'Hot', 
+            containsMoreItems: true, type: HomeSectionType.singleRowNormal});
+
+
         const recentlyAddedAlbums = getAlbums($recentlyAdded);
         recentlyAddedAlbumsSection.items = recentlyAddedAlbums;
         sectionCallback(recentlyAddedAlbumsSection);
+        const hotAlbums = getAlbums($hot);
+        hotAlbumsSection.items = hotAlbums;
+        sectionCallback(hotAlbumsSection);
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
@@ -113,7 +130,10 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         let param = '';
         switch (homepageSectionId) {
             case 'recent':
-                param = `/?page=${albumNum}`;
+                param = `/page/${albumNum}`;
+                break;
+            case 'hot':
+                param = '/explore/hot';
                 break;
             default:
                 throw new Error('Requested to getViewMoreItems for a section ID which doesn\'t exist');
@@ -174,6 +194,7 @@ export class Koushoku implements SearchResultsProviding, MangaProviding, Chapter
         });
     }
 
+    // TODO: Rework
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
     async getSearchResults(query: SearchRequest, metadata: any): Promise<PagedResults> {
         const searchPage: number = metadata?.page ?? 1;
