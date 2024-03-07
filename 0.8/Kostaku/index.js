@@ -1701,7 +1701,7 @@ exports.Kostaku = exports.KostakuInfo = void 0;
 const types_1 = require("@paperback/types");
 const BuonduaBase_1 = require("../BuonduaBase");
 const BuonduaBase_2 = __importDefault(require("../BuonduaBase"));
-const DOMAIN = 'https://kostaku.art';
+const DOMAIN = 'https://kiutaku.com/';
 exports.KostakuInfo = {
     version: BuonduaBase_1.SOURCE_VERSION,
     name: 'Kostaku',
