@@ -9,7 +9,7 @@ import { SOURCE_VERSION } from '../BuonduaBase';
 
 import BuonduaBase from '../BuonduaBase';
 
-const DOMAIN = 'https://kostaku.art';
+const DOMAIN = 'https://kiutaku.com/';
 
 export const KostakuInfo: SourceInfo = {
     version: SOURCE_VERSION,
